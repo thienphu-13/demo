@@ -1,70 +1,123 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Plot from 'react-plotly.js';
 import { AQI_BINS, AQI_LABELS, AQI_COLORS, AQI_RGBA, AQI_TEXT_COLORS, aqiLevel, aqiColor } from '../constants.js';
 
-const LAYOUT_BASE = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font: { family: 'Inter, sans-serif', size: 12 } };
+const L = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font: { family: 'Inter, sans-serif', size: 12 } };
 
-// ── Gauge ────────────────────────────────────────────────
-function GaugeChart({ aqi, label, color }) {
-  return (
-    <Plot
-      data={[{
-        type: 'indicator', mode: 'gauge+number', value: aqi,
-        number: { font: { size: 56, color }, suffix: '' },
-        title: { text: `<b>${label}</b>`, font: { size: 15, color } },
-        gauge: {
-          axis: { range: [0, 300], tickwidth: 1, tickfont: { size: 10 }, nticks: 7 },
-          bar: { color, thickness: 0.28 }, bgcolor: 'white', borderwidth: 0,
-          steps: [
-            { range: [0,   50],  color: '#d4f8d4' }, { range: [50,  100], color: '#fdfac4' },
-            { range: [100, 150], color: '#fde3bc' }, { range: [150, 200], color: '#fbbaba' },
-            { range: [200, 300], color: '#e8c7ee' },
-          ],
-          threshold: { line: { color: '#333', width: 3 }, thickness: 0.8, value: aqi },
-        },
-        domain: { x: [0, 1], y: [0.08, 1] },
-      }]}
-      layout={{
-        height: 250, margin: { l: 15, r: 15, t: 15, b: 5 },
-        paper_bgcolor: 'rgba(0,0,0,0)',
-      }}
-      config={{ displayModeBar: false, responsive: true }}
-      style={{ width: '100%' }}
-    />
-  );
-}
+// ── AQI Hero Card ─────────────────────────────────────────────────────────────
+function AQIHero({ current, recommendation, province }) {
+  const lvl   = current.level;
+  const color = AQI_COLORS[lvl];
+  const tc    = AQI_TEXT_COLORS[lvl];
+  const bgGrad = [
+    'linear-gradient(135deg,#00c853,#00e676)',
+    'linear-gradient(135deg,#f9a825,#ffee58)',
+    'linear-gradient(135deg,#ef6c00,#ffa726)',
+    'linear-gradient(135deg,#c62828,#ef5350)',
+    'linear-gradient(135deg,#6a1b9a,#ab47bc)',
+    'linear-gradient(135deg,#880e4f,#c2185b)',
+  ][lvl];
 
-// ── Pollutant Card ────────────────────────────────────────────────────────────
-function PollutantCard({ data }) {
-  const pct   = data.who ? Math.min((data.value / data.who) * 100, 200) : 0;
-  const color = data.value <= data.who ? '#2e7d32' : data.value <= data.vn ? '#f57c00' : '#c62828';
-  const status = data.value <= data.who ? 'Dưới ngưỡng WHO' : data.value <= data.vn ? 'Trên ngưỡng WHO' : 'Vượt QCVN';
   return (
-    <div style={{ background: '#f8fafd', border: `1px solid ${color}33`, borderLeft: `3px solid ${color}`, borderRadius: 10, padding: '10px 12px' }}>
-      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#333', marginBottom: 4 }}>{data.name}</div>
-      <div style={{ fontSize: '1.3rem', fontWeight: 800, color }}>
-        {data.value.toFixed(1)}
-        <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 400 }}> {data.unit}</span>
+    <div style={{ background: bgGrad, borderRadius: 16, padding: '24px 28px', color: tc, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>
+      {/* AQI số lớn */}
+      <div style={{ textAlign: 'center', minWidth: 120 }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 700, opacity: 0.8, letterSpacing: '0.1em', textTransform: 'uppercase' }}>US AQI</div>
+        <div style={{ fontSize: '5rem', fontWeight: 900, lineHeight: 1, margin: '4px 0' }}>{current.aqi}</div>
+        <div style={{ fontSize: '1rem', fontWeight: 700 }}>{current.label}</div>
       </div>
-      <div style={{ background: '#e8e8e8', borderRadius: 4, height: 5, margin: '6px 0' }}>
-        <div style={{ width: `${Math.min(pct, 100).toFixed(0)}%`, background: color, height: 5, borderRadius: 4 }} />
+
+      {/* Divider */}
+      <div style={{ width: 1, height: 80, background: `${tc}33`, flexShrink: 0 }} />
+
+      {/* Info */}
+      <div style={{ flex: 1, minWidth: 200 }}>
+        <div style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 6 }}>{province}</div>
+        <div style={{ fontSize: '0.9rem', opacity: 0.9, marginBottom: 10 }}>{recommendation?.desc}</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {recommendation?.activities?.slice(0, 3).map((act, i) => (
+            <span key={i} style={{ background: `${tc === '#fff' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`, borderRadius: 20, padding: '3px 10px', fontSize: '0.78rem', fontWeight: 600 }}>
+              {act}
+            </span>
+          ))}
+        </div>
       </div>
-      <div style={{ fontSize: '0.7rem', color: '#777', lineHeight: 1.5 }}>
-        <span style={{ color }}>● {status}</span><br />
-        WHO: {data.who} {data.unit}<br />
-        QCVN 05:2023: {data.vn} {data.unit}
+
+      {/* Safe hours */}
+      <div style={{ background: `${tc === '#fff' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`, borderRadius: 12, padding: '12px 16px', minWidth: 180, fontSize: '0.82rem', lineHeight: 1.6 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>Khung giờ an toàn</div>
+        <div style={{ opacity: 0.9 }}>{recommendation?.safe_hours}</div>
       </div>
     </div>
   );
 }
 
-// ── Forecast Bar Chart ────────────────────────────────────────────────────────
+// ── Pollutant Grid ────────────────────────────────────────────────────────────
+function PollutantGrid({ pollutants }) {
+  const keys = ['pm2_5', 'pm10', 'nitrogen_dioxide', 'ozone', 'sulphur_dioxide', 'carbon_monoxide'];
+
+  return (
+    <div>
+      <div style={{ fontWeight: 700, color: '#475569', fontSize: '0.85rem', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Chỉ số ô nhiễm — So sánh ngưỡng WHO & QCVN 05:2023
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        {keys.map(key => {
+          const d = pollutants[key];
+          if (!d) return null;
+          const pct   = Math.min((d.value / d.who) * 100, 200);
+          const color = d.value <= d.who ? '#2e7d32' : d.value <= d.vn ? '#f57c00' : '#c62828';
+          const status = d.value <= d.who ? 'Dưới ngưỡng WHO' : d.value <= d.vn ? 'Trên ngưỡng WHO' : 'Vượt QCVN';
+          return (
+            <div key={key} style={{ background: '#f8fafd', borderRadius: 10, padding: '12px 14px', borderLeft: `3px solid ${color}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#334155' }}>{d.name}</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 800, color }}>{d.value.toFixed(1)}<span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}> {d.unit}</span></span>
+              </div>
+              <div style={{ background: '#e2e8f0', borderRadius: 3, height: 4, marginBottom: 6 }}>
+                <div style={{ width: `${Math.min(pct, 100)}%`, background: color, height: 4, borderRadius: 3 }} />
+              </div>
+              <div style={{ fontSize: '0.68rem', color, fontWeight: 600, marginBottom: 2 }}>{status}</div>
+              <div style={{ fontSize: '0.66rem', color: '#94a3b8' }}>WHO: {d.who} · QCVN: {d.vn} {d.unit}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Weather Row ───────────────────────────────────────────────────────────────
+function WeatherRow({ weather }) {
+  const items = [
+    { label: 'Nhiệt độ',     key: 'temperature_2m',       unit: '°C',   icon: '🌡️' },
+    { label: 'Độ ẩm',        key: 'relative_humidity_2m', unit: '%',    icon: '💧' },
+    { label: 'Tốc độ gió',   key: 'wind_speed_10m',       unit: 'km/h', icon: '💨' },
+    { label: 'Mây che phủ',  key: 'cloud_cover',          unit: '%',    icon: '☁️' },
+    { label: 'Áp suất',      key: 'pressure_msl',         unit: 'hPa',  icon: '📊' },
+  ];
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8 }}>
+      {items.map(({ label, key, unit, icon }) => (
+        <div key={key} style={{ background: '#f0f9ff', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+          <div style={{ fontSize: '1.2rem', marginBottom: 2 }}>{icon}</div>
+          <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0369a1' }}>
+            {weather[key] != null ? weather[key].toFixed(1) : '—'}
+            <span style={{ fontSize: '0.65rem', fontWeight: 400, color: '#64748b' }}> {unit}</span>
+          </div>
+          <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: 2 }}>{label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Forecast Line Chart ───────────────────────────────────────────────────────
 function ForecastChart({ forecast }) {
-  const xLabels  = forecast.map(f => `${f.time_str}<br>${f.date_str}`);
-  const vals     = forecast.map(f => f.aqi);
-  const colors   = forecast.map(f => f.color);
-  const labels   = forecast.map(f => f.label);
-  const textColors = forecast.map(f => AQI_TEXT_COLORS[aqiLevel(f.aqi)]);
+  const xLabels = forecast.map(f => `${f.time_str}<br>${f.date_str}`);
+  const vals    = forecast.map(f => f.aqi);
+  const colors  = forecast.map(f => f.color);
+  const labels  = forecast.map(f => f.label);
 
   const shapes = AQI_BINS.slice(0, -1).map((lo, i) => ({
     type: 'rect', xref: 'paper', x0: 0, x1: 1,
@@ -75,11 +128,6 @@ function ForecastChart({ forecast }) {
   const threshAnnotations = [[50,'Tốt','#009a00'],[100,'Trung bình','#b8a000'],[150,'Kém','#c05a00'],[200,'Xấu','#aa0000']].map(
     ([y, text, color]) => ({ xref:'paper',x:1,yref:'y',y, text:`<b>${text}</b>`, showarrow:false, xanchor:'left', xshift:6, font:{color,size:9}, bgcolor:'rgba(255,255,255,0.85)', borderpad:2 })
   );
-  const labelAnnotations = xLabels.map((xl, i) => ({
-    x: xl, y: vals[i], text: `<b>${labels[i]}</b>`,
-    showarrow: false, yshift: 11, font: { size: 10, color: '#333' },
-    bgcolor: 'rgba(255,255,255,0.78)', borderpad: 2,
-  }));
 
   return (
     <Plot
@@ -95,13 +143,12 @@ function ForecastChart({ forecast }) {
         hovertemplate: '<b>%{x}</b><br>AQI: <b>%{y:.0f}</b><br>%{customdata}<extra></extra>',
       }]}
       layout={{
-        ...LAYOUT_BASE,
-        title: { text: 'Dự báo AQI theo các mốc thời gian', font: { size: 14, color: '#333' }, x: 0.02 },
-        xaxis: { tickfont: { size: 10 } },
-        yaxis: { title: 'US AQI', range: [0, Math.max(Math.max(...vals) * 1.5, 210)], gridcolor: 'rgba(0,0,0,0.06)' },
-        shapes, annotations: [...threshAnnotations, ...labelAnnotations],
-        showlegend: false, height: 400,
-        margin: { l: 10, r: 70, t: 40, b: 10 },
+        ...L,
+        xaxis: { tickfont: { size: 10 }, gridcolor: 'rgba(0,0,0,0.04)' },
+        yaxis: { title: 'US AQI', range: [0, Math.max(...vals) * 1.5], gridcolor: 'rgba(0,0,0,0.06)' },
+        shapes, annotations: threshAnnotations,
+        showlegend: false, height: 340,
+        margin: { l: 40, r: 70, t: 20, b: 10 },
       }}
       config={{ displayModeBar: false, responsive: true }}
       style={{ width: '100%' }}
@@ -109,34 +156,130 @@ function ForecastChart({ forecast }) {
   );
 }
 
-// ── Safe / Unsafe Windows ─────────────────────────────────────────────────────
+// ── Safe/Unsafe Windows ───────────────────────────────────────────────────────
 function SafeWindows({ forecast }) {
   const safe   = forecast.filter(f => f.level <= 1);
   const unsafe = forecast.filter(f => f.level >= 3);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 4 }}>
-      <div style={{ background: '#e8f5e9', borderRadius: 10, padding: 14 }}>
-        <div style={{ fontWeight: 700, color: '#2e7d32', marginBottom: 8, fontSize: '0.9rem' }}>Khung giờ an toàn</div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 14 }}>
+        <div style={{ fontWeight: 700, color: '#15803d', marginBottom: 8, fontSize: '0.85rem' }}>Khung giờ an toàn</div>
         {safe.length ? safe.map(f => (
-          <span key={f.horizon} style={{ display: 'inline-block', margin: '3px 4px', background: '#c8e6c9', color: '#1b5e20', borderRadius: 6, padding: '3px 10px', fontSize: '0.82rem', fontWeight: 600 }}>
+          <span key={f.horizon} style={{ display: 'inline-block', margin: '2px 3px', background: '#dcfce7', color: '#15803d', borderRadius: 6, padding: '2px 9px', fontSize: '0.8rem', fontWeight: 600 }}>
             {f.time_str} ({f.date_str})
           </span>
-        )) : <span style={{ color: '#666', fontSize: '0.83rem' }}>Không có trong 72h tới</span>}
+        )) : <span style={{ color: '#666', fontSize: '0.82rem' }}>Không có trong 72h tới</span>}
       </div>
-      <div style={{ background: '#fdecea', borderRadius: 10, padding: 14 }}>
-        <div style={{ fontWeight: 700, color: '#c62828', marginBottom: 8, fontSize: '0.9rem' }}>Khung giờ cần hạn chế</div>
+      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 14 }}>
+        <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: 8, fontSize: '0.85rem' }}>Khung giờ cần hạn chế</div>
         {unsafe.length ? unsafe.map(f => (
-          <span key={f.horizon} style={{ display: 'inline-block', margin: '3px 4px', background: '#ffcdd2', color: '#b71c1c', borderRadius: 6, padding: '3px 10px', fontSize: '0.82rem', fontWeight: 600 }}>
+          <span key={f.horizon} style={{ display: 'inline-block', margin: '2px 3px', background: '#fee2e2', color: '#dc2626', borderRadius: 6, padding: '2px 9px', fontSize: '0.8rem', fontWeight: 600 }}>
             {f.time_str} ({f.date_str})
           </span>
-        )) : <span style={{ color: '#666', fontSize: '0.83rem' }}>Không có trong 72h tới</span>}
+        )) : <span style={{ color: '#666', fontSize: '0.82rem' }}>Không có trong 72h tới</span>}
       </div>
     </div>
   );
 }
 
-// ── Model Evaluation Card ─────────────────────────────────────────────────────
-function EvalSection({ slug }) {
+// ── Province Map (SVG-based, no external dep) ─────────────────────────────────
+const PROVINCE_COORDS = {
+  thanh_hoa: { x: 62, y: 28,  name: 'Thanh Hóa' },
+  nghe_an:   { x: 48, y: 48,  name: 'Nghệ An'   },
+  ha_tinh:   { x: 55, y: 66,  name: 'Hà Tĩnh'   },
+  hue:       { x: 68, y: 108, name: 'Huế'        },
+};
+
+function ProvinceMap({ activeSlug, forecastData }) {
+  const aqi   = forecastData?.current?.aqi ?? 0;
+  const color = forecastData?.current?.color ?? '#ccc';
+  const label = forecastData?.current?.label ?? '';
+
+  // Mock AQI for other provinces (in real app would fetch all)
+  const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
+
+  return (
+    <div style={{ position: 'relative', background: 'linear-gradient(180deg,#dceeff 0%,#e8f5e9 100%)', borderRadius: 12, overflow: 'hidden', height: 280 }}>
+      {/* SVG map background - simplified Vietnam coast outline */}
+      <svg viewBox="0 0 120 200" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.15 }}>
+        <path d="M60,5 L75,20 L80,40 L70,60 L75,80 L65,100 L70,120 L60,140 L50,160 L45,180 L55,195 L40,190 L35,170 L45,150 L40,130 L50,110 L45,90 L55,70 L50,50 L55,30 Z" fill="#2196f3" />
+      </svg>
+
+      {/* Province markers */}
+      {Object.entries(PROVINCE_COORDS).map(([slug, pos]) => {
+        const isActive = slug === activeSlug;
+        const mAqi     = isActive ? aqi : mockAQI[slug];
+        const mColor   = aqiColor(mAqi);
+        const mLabel   = isActive ? label : AQI_LABELS[aqiLevel(mAqi)];
+
+        return (
+          <div key={slug} style={{
+            position: 'absolute',
+            left: `${pos.x}%`, top: `${pos.y / 1.6}%`,
+            transform: 'translate(-50%, -50%)',
+            zIndex: isActive ? 10 : 5,
+          }}>
+            {/* Pulse ring for active */}
+            {isActive && (
+              <div style={{
+                position: 'absolute', inset: -8,
+                borderRadius: '50%', border: `3px solid ${mColor}`,
+                animation: 'pulse 1.5s infinite',
+                opacity: 0.5,
+              }} />
+            )}
+            {/* Marker */}
+            <div style={{
+              width: isActive ? 52 : 44, height: isActive ? 52 : 44,
+              borderRadius: '50%', background: mColor,
+              border: `3px solid ${isActive ? '#fff' : 'rgba(255,255,255,0.7)'}`,
+              boxShadow: isActive ? `0 4px 16px ${mColor}88` : '0 2px 8px rgba(0,0,0,0.2)',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'all 0.2s',
+            }}>
+              <div style={{ fontSize: isActive ? '0.95rem' : '0.8rem', fontWeight: 900, color: AQI_TEXT_COLORS[aqiLevel(mAqi)], lineHeight: 1 }}>
+                {Math.round(mAqi)}
+              </div>
+            </div>
+            {/* Label */}
+            <div style={{
+              position: 'absolute', top: '105%', left: '50%',
+              transform: 'translateX(-50%)',
+              background: isActive ? '#1e293b' : 'rgba(30,41,59,0.75)',
+              color: '#fff', borderRadius: 6, padding: '2px 7px',
+              fontSize: '0.65rem', fontWeight: 600, whiteSpace: 'nowrap',
+              marginTop: 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+            }}>
+              {pos.name}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Legend */}
+      <div style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(255,255,255,0.92)', borderRadius: 8, padding: '8px 10px', fontSize: '0.68rem' }}>
+        <div style={{ fontWeight: 700, color: '#334155', marginBottom: 4 }}>Mức AQI</div>
+        {[['Tốt','#00e400'],['Trung bình','#ffff00'],['Kém','#ff7e00'],['Xấu','#ff0000']].map(([l, c]) => (
+          <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
+            <span style={{ color: '#475569' }}>{l}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Title */}
+      <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(255,255,255,0.9)', borderRadius: 8, padding: '4px 10px', fontSize: '0.75rem', fontWeight: 700, color: '#1e293b' }}>
+        Bản đồ AQI — Miền Trung VN
+      </div>
+
+      <style>{`@keyframes pulse { 0%,100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.3); opacity: 0.2; } }`}</style>
+    </div>
+  );
+}
+
+// ── Evaluation Card ───────────────────────────────────────────────────────────
+function EvalCard({ slug }) {
   const evalData = {
     thanh_hoa: { model: 'CatBoost', rmse: 13.97, wla: 77.5, r2: 0.781, n_pc: 18 },
     nghe_an:   { model: 'CatBoost', rmse: 10.47, wla: 83.3, r2: 0.836, n_pc: 17 },
@@ -144,181 +287,67 @@ function EvalSection({ slug }) {
     hue:       { model: 'CatBoost', rmse:  9.38, wla: 88.6, r2: 0.865, n_pc: 19 },
   };
   const d = evalData[slug] || evalData.thanh_hoa;
-
+  const metrics = [
+    { label: 'Mô hình',  value: d.model,            color: '#1565c0' },
+    { label: 'RMSE',     value: d.rmse.toFixed(3),  color: '#dc2626', note: '↓ tốt hơn' },
+    { label: 'R²',       value: d.r2.toFixed(3),    color: '#16a34a', note: '↑ tốt hơn' },
+    { label: 'WLA',      value: `${d.wla}%`,        color: '#7c3aed', note: 'độ chính xác' },
+    { label: 'Số PC',    value: `${d.n_pc} PC`,     color: '#0891b2' },
+  ];
   return (
-    <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-      <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
-        Đánh giá hiệu suất mô hình dự báo
-      </h2>
-      <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: 14 }}>
-        Kết quả đánh giá trên tập kiểm tra — mô hình tốt nhất được chọn tự động qua PCA ({d.n_pc} thành phần chính).
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-        {[
-          { label: 'Mô hình tốt nhất', value: d.model,             unit: '',   color: '#1565c0' },
-          { label: 'RMSE',             value: d.rmse.toFixed(3),    unit: '',   color: '#e53935', note: 'thấp hơn = tốt hơn' },
-          { label: 'R²',               value: d.r2.toFixed(3),      unit: '',   color: '#2e7d32', note: 'cao hơn = tốt hơn' },
-          { label: 'WLA',              value: `${d.wla.toFixed(1)}%`, unit: '', color: '#6a1b9a', note: 'độ chính xác phân loại mức AQI' },
-          { label: 'Số thành phần PCA',value: `${d.n_pc} PC`,       unit: '',   color: '#00838f' },
-        ].map(({ label, value, color, note }) => (
-          <div key={label} style={{ background: '#f8fafd', border: '1px solid #e0e7f0', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: '1.35rem', fontWeight: 800, color }}>{value}</div>
-            {note && <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: 3 }}>{note}</div>}
+    <div style={{ background: 'linear-gradient(135deg,#eff6ff,#f0fdf4)', border: '1px solid #bfdbfe', borderRadius: 12, padding: '14px 18px' }}>
+      <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 10, fontSize: '0.88rem' }}>Đánh giá hiệu suất mô hình dự báo</div>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        {metrics.map(({ label, value, color, note }) => (
+          <div key={label} style={{ textAlign: 'center', minWidth: 70 }}>
+            <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{label}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 800, color }}>{value}</div>
+            {note && <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>{note}</div>}
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 12, background: '#e8f4fd', borderLeft: '3px solid #1565c0', borderRadius: '0 8px 8px 0', padding: '8px 12px', fontSize: '0.78rem', color: '#1a3a5c' }}>
-        Mô hình được huấn luyện trên dữ liệu quan trắc 08/2022 – 03/2026.
-        Dự báo đa bước: 1h / 3h / 6h / 12h / 24h / 48h / 72h.
-        RMSE = Root Mean Squared Error &nbsp;|&nbsp; WLA = Weighted Level Accuracy &nbsp;|&nbsp; R² = Hệ số xác định
+      <div style={{ marginTop: 10, fontSize: '0.72rem', color: '#64748b' }}>
+        Giai đoạn dữ liệu: 08/2022 – 03/2026 · Dự báo đa bước: 1h / 3h / 6h / 12h / 24h / 48h / 72h
       </div>
     </div>
   );
 }
-function ProvinceMap({ provinces, forecastData, activeSlug }) {
-  const coords = {
-    thanh_hoa: { lat: 19.808, lon: 105.776, name: 'Thanh Hóa' },
-    nghe_an:   { lat: 19.234, lon: 104.920, name: 'Nghệ An'   },
-    ha_tinh:   { lat: 18.343, lon: 105.906, name: 'Hà Tĩnh'   },
-    hue:       { lat: 16.462, lon: 107.595, name: 'Huế'        },
-  };
 
-  const aqi = forecastData?.current?.aqi ?? 0;
-  const color = forecastData?.current?.color ?? '#ccc';
-  const label = forecastData?.current?.label ?? '';
-
-  return (
-    <Plot
-      data={[{
-        type: 'scattergeo',
-        mode: 'markers+text',
-        lat: Object.values(coords).map(c => c.lat),
-        lon: Object.values(coords).map(c => c.lon),
-        text: Object.values(coords).map(c => c.name),
-        textposition: 'top center',
-        textfont: { size: 11, color: '#333' },
-        marker: {
-          size: Object.keys(coords).map(s => s === activeSlug ? 22 : 14),
-          color: Object.keys(coords).map(s => s === activeSlug ? color : '#90caf9'),
-          line: { color: '#fff', width: 2 },
-          symbol: 'circle',
-        },
-        customdata: Object.keys(coords).map(s =>
-          s === activeSlug ? `${aqi} — ${label}` : 'Chọn để xem'
-        ),
-        hovertemplate: '<b>%{text}</b><br>%{customdata}<extra></extra>',
-      }]}
-      layout={{
-        geo: {
-          scope: 'asia',
-          center: { lat: 17.5, lon: 106.5 },
-          projection: { scale: 12 },
-          showland: true, landcolor: '#f0f4f0',
-          showocean: true, oceancolor: '#dceeff',
-          showcoastlines: true, coastlinecolor: '#aaa',
-          showrivers: true, rivercolor: '#a8d4f5',
-          showcountries: true, countrycolor: '#bbb',
-          bgcolor: 'rgba(0,0,0,0)',
-        },
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        margin: { l: 0, r: 0, t: 0, b: 0 },
-        height: 320,
-        font: { family: 'Inter, sans-serif' },
-      }}
-      config={{ displayModeBar: false, responsive: true }}
-      style={{ width: '100%' }}
-    />
-  );
-}
-
-// ── Main ──────────────────────────────────────────────────────────────────────
-export default function Tab1Forecast({ data, loading }) {
+// ── Main Tab ──────────────────────────────────────────────────────────────────
+export default function Tab1Forecast({ data }) {
   if (!data) return null;
-  const { current, forecast, pollutants, weather, province, slug } = data;
-  const pollutantKeys = ['pm2_5','pm10','nitrogen_dioxide','ozone','sulphur_dioxide','carbon_monoxide'];
-  const weatherItems = [
-    { label: 'Nhiệt độ',    key: 'temperature_2m',       unit: '°C'   },
-    { label: 'Độ ẩm',       key: 'relative_humidity_2m', unit: '%'    },
-    { label: 'Tốc độ gió',  key: 'wind_speed_10m',       unit: 'km/h' },
-    { label: 'Mây che phủ', key: 'cloud_cover',          unit: '%'    },
-  ];
+  const { current, forecast, pollutants, weather, recommendation, province, slug } = data;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* ── AQI + Pollutants + Weather ─────────────────────────────────── */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: 14 }}>
-          Chỉ số AQI — {province}
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px,240px) 1fr', gap: 20, alignItems: 'start' }}>
+      {/* ── Hero AQI ──────────────────────────────────────────────────── */}
+      <AQIHero current={current} recommendation={recommendation} province={province} />
 
-          {/* Gauge */}
-          <div>
-            <GaugeChart aqi={current.aqi} label={current.label} color={current.color} />
-            <p style={{ textAlign: 'center', fontSize: '0.83rem', color: '#555', marginTop: 4, lineHeight: 1.4 }}>
-              {data.recommendation?.desc}
-            </p>
-          <div>
-            {/* Pollutants */}
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>
-              Chỉ số ô nhiễm — so sánh với ngưỡng WHO và QCVN 05:2023
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
-              {pollutantKeys.map(key => pollutants[key] && <PollutantCard key={key} data={pollutants[key]} />)}
-            </div>
-            </div>
-            
-            {/* ── Bản đồ vị trí ─────────────────────────────────────────────── */}
-            <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-              <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
-                  Vị trí các tỉnh quan trắc
-              </h2>
-              <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 8 }}>
-                  Chấm lớn = tỉnh đang xem. Màu thể hiện mức AQI hiện tại.
-              </p>
-              <ProvinceMap forecastData={data} activeSlug={data.slug} />
-            </div>
-            
-            {/* Weather */}
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>Điều kiện thời tiết</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
-              {weatherItems.map(({ label, key, unit }) => (
-                <div key={key} style={{ background: '#f8fafd', border: '1px solid #e0e7f0', borderRadius: 10, padding: '10px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 4 }}>{label}</div>
-                  <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#1a202c' }}>
-                    {weather[key] != null ? weather[key].toFixed(1) : '—'}
-                    <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 400 }}> {unit}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+      {/* ── 2-col: Map + Pollutants ───────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, alignItems: 'start' }}>
+        <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+          <ProvinceMap activeSlug={slug || 'thanh_hoa'} forecastData={data} />
+        </div>
+        <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 6px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <PollutantGrid pollutants={pollutants} />
+          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
+            <div style={{ fontWeight: 700, color: '#475569', fontSize: '0.85rem', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Điều kiện thời tiết</div>
+            <WeatherRow weather={weather} />
           </div>
         </div>
       </div>
 
-      {/* ── Forecast Chart ────────────────────────────────────────────────── */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
-          Dự báo AQI
-        </h2>
-        <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 12 }}>
-          Dự báo đa bước sử dụng mô hình PCA + Machine Learning.
-        </p>
-        {forecast && <ForecastChart forecast={forecast} />}
+      {/* ── Forecast Chart ────────────────────────────────────────────── */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 18, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 2 }}>Dự báo AQI — 72 giờ tiếp theo</div>
+        <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 10 }}>Kết quả từ mô hình PCA + ML tốt nhất. Giai đoạn dữ liệu: 08/2022 – 03/2026.</div>
+        <ForecastChart forecast={forecast} />
+        <SafeWindows forecast={forecast} />
       </div>
 
-      {/* ── Safe / Unsafe Windows ─────────────────────────────────────────── */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>
-          Khung giờ an toàn / cần hạn chế trong 72 giờ tới
-        </h2>
-        {forecast && <SafeWindows forecast={forecast} />}
-      </div>
-
-      {/* ── Model Evaluation ──────────────────────────────────────────────── */}
-      <EvalSection slug={data.slug || 'thanh_hoa'} />
+      {/* ── Eval Card ─────────────────────────────────────────────────── */}
+      <EvalCard slug={slug || 'thanh_hoa'} />
 
     </div>
   );
