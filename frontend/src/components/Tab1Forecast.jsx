@@ -222,13 +222,18 @@ function ProvinceMapWide({ activeSlug, forecastData }) {
           style: 'open-street-map',
           center: { lat: 18.0, lon: 105.8 },
           zoom: 5.8,
-        },
+          uirevision: 'true',
+      },
         paper_bgcolor: 'rgba(0,0,0,0)',
         margin: { l: 0, r: 0, t: 0, b: 0 },
         height: 360,
         showlegend: false,
       }}
-      config={{ displayModeBar: false, responsive: true, scrollZoom: false }}
+      config={{ displayModeBar: true, responsive: true, scrollZoom: true,
+        modeBarButtonsToRemove: ['pan2d','select2d','lasso2d','resetScale2d','toImage','autoScale2d'],
+        modeBarButtonsToAdd: [],
+        displaylogo: false,
+      }}
       style={{ width: '100%', borderRadius: 10, overflow: 'hidden' }}
     />
   );
