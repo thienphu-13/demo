@@ -220,122 +220,139 @@ const PROVINCE_COORDS = {
   ha_tinh:   { x: 27, y: 55,  name: 'Hà Tĩnh'   },
   hue:       { x: 38, y: 82,  name: 'Huế'        },
 };
+
 function ProvinceMapWide({ activeSlug, forecastData }) {
   const aqi   = forecastData?.current?.aqi ?? 0;
   const color = forecastData?.current?.color ?? '#ccc';
+  const label = forecastData?.current?.label ?? '';
 
+  // Mock AQI for other provinces (in real app would fetch all)
   const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
 
-  const provinces = [
-    { slug: 'thanh_hoa', name: 'Thanh Hóa', lat: 19.808, lon: 105.776 },
-    { slug: 'nghe_an',   name: 'Nghệ An',   lat: 18.679, lon: 105.682 },
-    { slug: 'ha_tinh',   name: 'Hà Tĩnh',   lat: 18.343, lon: 105.906 },
-    { slug: 'hue',       name: 'Huế',        lat: 16.462, lon: 107.595 },
-  ];
+  return (
+    <div style={{ position: 'relative', background: 'linear-gradient(180deg,#dceeff 0%,#e8f5e9 100%)', borderRadius: 12, overflow: 'hidden', height: 260 }}>
+      {/* SVG map background - simplified Vietnam coast outline */}
+      <svg viewBox="0 0 120 200" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.15 }}>
+        <path d="M60,5 L75,20 L80,40 L70,60 L75,80 L65,100 L70,120 L60,140 L50,160 L45,180 L55,195 L40,190 L35,170 L45,150 L40,130 L50,110 L45,90 L55,70 L50,50 L55,30 Z" fill="#2196f3" />
+      </svg>
 
-  const lats    = provinces.map(p => p.lat);
-  const lons    = provinces.map(p => p.lon);
-  const aqiVals = provinces.map(p => p.slug === activeSlug ? aqi : mockAQI[p.slug]);
-  const colors  = aqiVals.map(v => aqiColor(v));
-  const labels  = provinces.map(p => p.name);
-  const sizes   = provinces.map(p => p.slug === activeSlug ? 36 : 26);
-  const texts   = aqiVals.map((v, i) =>
-    `<b>${provinces[i].name}</b><br>AQI: <b>${Math.round(v)}</b> — ${AQI_LABELS[aqiLevel(v)]}`
-  );
+      {/* Province markers */}
+      {Object.entries(PROVINCE_COORDS).map(([slug, pos]) => {
+        const isActive = slug === activeSlug;
+        const mAqi     = isActive ? aqi : mockAQI[slug];
+        const mColor   = aqiColor(mAqi);
+        const mLabel   = isActive ? label : AQI_LABELS[aqiLevel(mAqi)];
+
+        return (
+          <div key={slug} style={{
+            position: 'absolute',
+            left: `${pos.x}%`, top: `${pos.y}%`,
+            transform: 'translate(-50%, -50%)',
+            zIndex: isActive ? 10 : 5,
+          }}>
+            {/* Pulse ring for active */}
+            {isActive && (
+              <div style={{
+                position: 'absolute', inset: -8,
+                borderRadius: '50%', border: `3px solid ${mColor}`,
+                animation: 'pulse 1.5s infinite',
+                opacity: 0.5,
+              }} />
+            )}
+            {/* Marker */}
+            <div style={{
+              width: isActive ? 52 : 44, height: isActive ? 52 : 44,
+              borderRadius: '50%', background: mColor,
+              border: `3px solid ${isActive ? '#fff' : 'rgba(255,255,255,0.7)'}`,
+              boxShadow: isActive ? `0 4px 16px ${mColor}88` : '0 2px 8px rgba(0,0,0,0.2)',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'all 0.2s',
+            }}>
+              <div style={{ fontSize: isActive ? '0.95rem' : '0.8rem', fontWeight: 900, color: AQI_TEXT_COLORS[aqiLevel(mAqi)], lineHeight: 1 }}>
+                {Math.round(mAqi)}
+              </div>
+            </div>
+            {/* Label */}
+            <div style={{
+              position: 'absolute', top: '105%', left: '50%',
+              transform: 'translateX(-50%)',
+              background: isActive ? '#1e293b' : 'rgba(30,41,59,0.75)',
+              color: '#fff', borderRadius: 6, padding: '2px 7px',
+              fontSize: '0.65rem', fontWeight: 600, whiteSpace: 'nowrap',
+              marginTop: 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+            }}>
+              {pos.name}
+            </div>
+          </div>
+        );
+      })}
+
+// ── Health Advisory Card (thay thế EvalCard — không trùng Tab5) ──────────────
+function HealthAdvisory({ recommendation, forecast }) {
+  if (!recommendation) return null;
+  const HOUR_SLOTS = [
+    { label: 'Sáng sớm', range: '5–8h',  icon: '🌅' },
+    { label: 'Buổi sáng', range: '8–12h', icon: '☀️' },
+    { label: 'Buổi trưa', range: '12–14h',icon: '🌞' },
+    { label: 'Buổi chiều',range: '14–18h',icon: '🌤️' },
+    { label: 'Chiều tối', range: '18–21h',icon: '🌆' },
+    { label: 'Ban đêm',   range: '21–5h', icon: '🌙' },
+  ];
+  // Tính mức AQI trung bình theo slot từ forecast
+  const slotLevels = [0,1,2,3,4,5].map(i => {
+    const h = [6,9,12,15,18,22][i];
+    const match = forecast?.find(f => {
+      const fh = new Date(f.datetime).getHours();
+      return Math.abs(fh - h) <= 2;
+    });
+    return match?.level ?? 1;
+  });
+  const SLOT_BG = ['#f0fdf4','#fffde7','#fff7ed','#fef2f2','#f5f3ff','#f8fafc'];
+  const SLOT_TC = ['#15803d','#a16207','#c2410c','#dc2626','#7c3aed','#475569'];
 
   return (
-    <Plot
-      data={[{
-        type: 'scattermapbox',
-        lat: lats, lon: lons,
-        mode: 'markers+text',
-        marker: {
-          size: sizes,
-          color: colors,
-          opacity: 0.92,
-          allowoverlap: true,
-        },
-        text: provinces.map((p, i) =>
-          `<b style="font-size:14px">${Math.round(aqiVals[i])}</b>`
-        ),
-        textposition: 'middle center',
-        textfont: {
-          size: provinces.map(p => p.slug === activeSlug ? 13 : 11),
-          color: aqiVals.map(v => AQI_TEXT_COLORS[aqiLevel(v)]),
-        },
-        customdata: texts,
-        hovertemplate: '%{customdata}<extra></extra>',
-      }]}
-      layout={{
-        mapbox: {
-          style: 'open-street-map',
-          center: { lat: 18.2, lon: 106.2 },
-          zoom: 5.4,
-        },
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        margin: { l: 0, r: 0, t: 0, b: 0 },
-        height: 340,
-        showlegend: false,
-      }}
-      config={{ displayModeBar: false, responsive: true, scrollZoom: false }}
-      style={{ width: '100%', borderRadius: 10, overflow: 'hidden' }}
-    />
-  );
-}
+    <div style={{ background: '#fff', borderRadius: 14, padding: 18, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+      <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.95rem' }}>
+        Khuyến nghị hoạt động theo khung giờ
+      </div>
+      <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 14 }}>
+        Dựa trên mức AQI dự báo và tiêu chuẩn WHO/QCVN 05:2023
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 14 }}>
+        {HOUR_SLOTS.map((slot, i) => {
+          const lvl = slotLevels[i];
+          const bg  = SLOT_BG[Math.min(lvl, 5)];
+          const tc  = SLOT_TC[Math.min(lvl, 5)];
+          const statusText = ['An toàn','Chấp nhận','Hạn chế','Tránh ra ngoài','Nguy hiểm','Khẩn cấp'][lvl] || 'Chấp nhận';
+          return (
+            <div key={i} style={{ background: bg, borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: '1.1rem' }}>{slot.icon}</span>
+                <div>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155' }}>{slot.label}</div>
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{slot.range}</div>
+                </div>
+              </div>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: tc }}>{statusText}</div>
+            </div>
+          );
+        })}
+      </div>
 
-
-      {/* Legend */}
-      <div style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(255,255,255,0.92)', borderRadius: 8, padding: '8px 10px', fontSize: '0.68rem' }}>
-        <div style={{ fontWeight: 700, color: '#334155', marginBottom: 4 }}>Mức AQI</div>
-        {[['Tốt','#00e400'],['Trung bình','#ffff00'],['Kém','#ff7e00'],['Xấu','#ff0000']].map(([l, c]) => (
-          <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
-            <span style={{ color: '#475569' }}>{l}</span>
+      {/* Nhóm dễ bị ảnh hưởng */}
+      {recommendation.sensitive?.length > 0 && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '10px 14px' }}>
+          <div style={{ fontWeight: 700, color: '#c2410c', fontSize: '0.82rem', marginBottom: 6 }}>
+            Lưu ý — Nhóm dễ bị ảnh hưởng
           </div>
-        ))}
-      </div>
-
-      {/* Title */}
-      <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(255,255,255,0.9)', borderRadius: 8, padding: '4px 10px', fontSize: '0.75rem', fontWeight: 700, color: '#1e293b' }}>
-        Bản đồ AQI — Miền Trung VN
-      </div>
-
-      <style>{`@keyframes pulse { 0%,100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.3); opacity: 0.2; } }`}</style>
-    </div>
-  );
-}
-
-// ── Evaluation Card ───────────────────────────────────────────────────────────
-function EvalCard({ slug }) {
-  const evalData = {
-    thanh_hoa: { model: 'CatBoost', rmse: 13.97, wla: 77.5, r2: 0.781, n_pc: 18 },
-    nghe_an:   { model: 'CatBoost', rmse: 10.47, wla: 83.3, r2: 0.836, n_pc: 17 },
-    ha_tinh:   { model: 'Lasso',    rmse: 10.52, wla: 82.9, r2: 0.831, n_pc: 18 },
-    hue:       { model: 'CatBoost', rmse:  9.38, wla: 88.6, r2: 0.865, n_pc: 19 },
-  };
-  const d = evalData[slug] || evalData.thanh_hoa;
-  const metrics = [
-    { label: 'Mô hình',  value: d.model,            color: '#1565c0' },
-    { label: 'RMSE',     value: d.rmse.toFixed(3),  color: '#dc2626', note: '↓ tốt hơn' },
-    { label: 'R²',       value: d.r2.toFixed(3),    color: '#16a34a', note: '↑ tốt hơn' },
-    { label: 'WLA',      value: `${d.wla}%`,        color: '#7c3aed', note: 'độ chính xác' },
-    { label: 'Số PC',    value: `${d.n_pc} PC`,     color: '#0891b2' },
-  ];
-  return (
-    <div style={{ background: 'linear-gradient(135deg,#eff6ff,#f0fdf4)', border: '1px solid #bfdbfe', borderRadius: 12, padding: '14px 18px' }}>
-      <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 10, fontSize: '0.88rem' }}>Đánh giá hiệu suất mô hình dự báo</div>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        {metrics.map(({ label, value, color, note }) => (
-          <div key={label} style={{ textAlign: 'center', minWidth: 70 }}>
-            <div style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{label}</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800, color }}>{value}</div>
-            {note && <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>{note}</div>}
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 10, fontSize: '0.72rem', color: '#64748b' }}>
-        Giai đoạn dữ liệu: 08/2022 – 03/2026 · Dự báo đa bước: 1h / 3h / 6h / 12h / 24h / 48h / 72h
-      </div>
+          {recommendation.sensitive.map((s, i) => (
+            <div key={i} style={{ fontSize: '0.8rem', color: '#7c3f00', marginBottom: 3, display: 'flex', gap: 6 }}>
+              <span style={{ flexShrink: 0 }}>•</span> {s}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -384,8 +401,8 @@ export default function Tab1Forecast({ data }) {
         <SafeWindows forecast={forecast} />
       </div>
 
-      {/* ── Eval Card ─────────────────────────────────────────────────── */}
-      <EvalCard slug={slug || 'thanh_hoa'} />
+      {/* ── Health Advisory ───────────────────────────────────────────── */}
+      <HealthAdvisory recommendation={recommendation} forecast={forecast} />
 
     </div>
   );
