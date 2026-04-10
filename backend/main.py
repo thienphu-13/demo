@@ -296,6 +296,7 @@ def get_model_summary(slug: str):
             "name":    m[0],
             "rmse":    m[1],
             "wla":     m[2],
+            "r2":      m[3] if len(m) > 3 else None,
             "is_best": m[0] == data["best"],
         }
         for m in data["models"]
@@ -313,6 +314,7 @@ def get_model_summary(slug: str):
                 "n_pc":     d["n_pc"],
                 "rmse":     best[1],
                 "wla":      best[2],
+                "r2":       best[3] if len(best) > 3 else None,
             })
 
     return {
