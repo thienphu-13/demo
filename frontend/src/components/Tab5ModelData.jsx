@@ -55,11 +55,11 @@ export default function Tab5ModelData({ slug }) {
         </p>
         <Plot
         data={[{
-          type: 'scatter', mode: 'markers+text',
+          type: 'bar', orientation: 'h',
           x: sorted.map(m => m.rmse),
           y: sorted.map(m => (m.is_best ? '⭐ ' : '') + m.name),
-          marker: { color: barColors, size: 14, line: { color: 'rgba(0,0,0,0.2)', width: 1 } },
-          text: sorted.map(m => m.rmse.toFixed(3)),
+          marker: { color: barColors, line: { color: 'rgba(0,0,0,0.1)', width: 1 } },
+          textposition: 'outside',
           textposition: 'middle right',
           textfont: { size: 11 },
         }]}
