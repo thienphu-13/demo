@@ -4,7 +4,7 @@ import { AQI_BINS, AQI_LABELS, AQI_COLORS, AQI_RGBA, AQI_TEXT_COLORS, aqiLevel, 
 
 const LAYOUT_BASE = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font: { family: 'Inter, sans-serif', size: 12 } };
 
-// ── Gauge (không có timestamp) ────────────────────────────────────────────────
+// ── Gauge ────────────────────────────────────────────────
 function GaugeChart({ aqi, label, color }) {
   return (
     <Plot
@@ -84,11 +84,13 @@ function ForecastChart({ forecast }) {
   return (
     <Plot
       data={[{
-        type: 'bar', x: xLabels, y: vals,
-        marker: { color: colors, line: { color: 'rgba(0,0,0,0.12)', width: 1 } },
+        type: 'scatter', mode: 'lines+markers+text',
+        x: xLabels, y: vals,
+        line: { color: '#1565c0', width: 2.5, shape: 'spline' },
+        marker: { color: colors, size: 16, line: { color: '#fff', width: 2 } },
         text: vals.map(v => `<b>${Math.round(v)}</b>`),
-        textposition: 'inside', insidetextanchor: 'middle',
-        textfont: { size: 14, color: textColors },
+        textposition: 'top center',
+        textfont: { size: 11, color: '#333' },
         customdata: labels,
         hovertemplate: '<b>%{x}</b><br>AQI: <b>%{y:.0f}</b><br>%{customdata}<extra></extra>',
       }]}
@@ -96,9 +98,9 @@ function ForecastChart({ forecast }) {
         ...LAYOUT_BASE,
         title: { text: 'Dự báo AQI theo các mốc thời gian', font: { size: 14, color: '#333' }, x: 0.02 },
         xaxis: { tickfont: { size: 10 } },
-        yaxis: { title: 'US AQI', range: [0, Math.max(Math.max(...vals) * 1.38, 210)], gridcolor: 'rgba(0,0,0,0.06)' },
+        yaxis: { title: 'US AQI', range: [0, Math.max(Math.max(...vals) * 1.5, 210)], gridcolor: 'rgba(0,0,0,0.06)' },
         shapes, annotations: [...threshAnnotations, ...labelAnnotations],
-        showlegend: false, height: 400, bargap: 0.38,
+        showlegend: false, height: 400,
         margin: { l: 10, r: 70, t: 40, b: 10 },
       }}
       config={{ displayModeBar: false, responsive: true }}
@@ -174,6 +176,61 @@ function EvalSection({ slug }) {
     </div>
   );
 }
+function ProvinceMap({ provinces, forecastData, activeSlug }) {
+  const coords = {
+    thanh_hoa: { lat: 19.808, lon: 105.776, name: 'Thanh Hóa' },
+    nghe_an:   { lat: 19.234, lon: 104.920, name: 'Nghệ An'   },
+    ha_tinh:   { lat: 18.343, lon: 105.906, name: 'Hà Tĩnh'   },
+    hue:       { lat: 16.462, lon: 107.595, name: 'Huế'        },
+  };
+
+  const aqi = forecastData?.current?.aqi ?? 0;
+  const color = forecastData?.current?.color ?? '#ccc';
+  const label = forecastData?.current?.label ?? '';
+
+  return (
+    <Plot
+      data={[{
+        type: 'scattergeo',
+        mode: 'markers+text',
+        lat: Object.values(coords).map(c => c.lat),
+        lon: Object.values(coords).map(c => c.lon),
+        text: Object.values(coords).map(c => c.name),
+        textposition: 'top center',
+        textfont: { size: 11, color: '#333' },
+        marker: {
+          size: Object.keys(coords).map(s => s === activeSlug ? 22 : 14),
+          color: Object.keys(coords).map(s => s === activeSlug ? color : '#90caf9'),
+          line: { color: '#fff', width: 2 },
+          symbol: 'circle',
+        },
+        customdata: Object.keys(coords).map(s =>
+          s === activeSlug ? `${aqi} — ${label}` : 'Chọn để xem'
+        ),
+        hovertemplate: '<b>%{text}</b><br>%{customdata}<extra></extra>',
+      }]}
+      layout={{
+        geo: {
+          scope: 'asia',
+          center: { lat: 17.5, lon: 106.5 },
+          projection: { scale: 12 },
+          showland: true, landcolor: '#f0f4f0',
+          showocean: true, oceancolor: '#dceeff',
+          showcoastlines: true, coastlinecolor: '#aaa',
+          showrivers: true, rivercolor: '#a8d4f5',
+          showcountries: true, countrycolor: '#bbb',
+          bgcolor: 'rgba(0,0,0,0)',
+        },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        margin: { l: 0, r: 0, t: 0, b: 0 },
+        height: 320,
+        font: { family: 'Inter, sans-serif' },
+      }}
+      config={{ displayModeBar: false, responsive: true }}
+      style={{ width: '100%' }}
+    />
+  );
+}
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Tab1Forecast({ data, loading }) {
@@ -203,8 +260,6 @@ export default function Tab1Forecast({ data, loading }) {
             <p style={{ textAlign: 'center', fontSize: '0.83rem', color: '#555', marginTop: 4, lineHeight: 1.4 }}>
               {data.recommendation?.desc}
             </p>
-          </div>
-
           <div>
             {/* Pollutants */}
             <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>
@@ -213,7 +268,19 @@ export default function Tab1Forecast({ data, loading }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
               {pollutantKeys.map(key => pollutants[key] && <PollutantCard key={key} data={pollutants[key]} />)}
             </div>
-
+            </div>
+            
+            {/* ── Bản đồ vị trí ─────────────────────────────────────────────── */}
+            <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+              <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
+                  Vị trí các tỉnh quan trắc
+              </h2>
+              <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 8 }}>
+                  Chấm lớn = tỉnh đang xem. Màu thể hiện mức AQI hiện tại.
+              </p>
+              <ProvinceMap forecastData={data} activeSlug={data.slug} />
+            </div>
+            
             {/* Weather */}
             <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>Điều kiện thời tiết</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
