@@ -220,73 +220,69 @@ const PROVINCE_COORDS = {
   ha_tinh:   { x: 27, y: 55,  name: 'Hà Tĩnh'   },
   hue:       { x: 38, y: 82,  name: 'Huế'        },
 };
-
 function ProvinceMapWide({ activeSlug, forecastData }) {
   const aqi   = forecastData?.current?.aqi ?? 0;
   const color = forecastData?.current?.color ?? '#ccc';
-  const label = forecastData?.current?.label ?? '';
 
-  // Mock AQI for other provinces (in real app would fetch all)
   const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
 
+  const provinces = [
+    { slug: 'thanh_hoa', name: 'Thanh Hóa', lat: 19.808, lon: 105.776 },
+    { slug: 'nghe_an',   name: 'Nghệ An',   lat: 18.679, lon: 105.682 },
+    { slug: 'ha_tinh',   name: 'Hà Tĩnh',   lat: 18.343, lon: 105.906 },
+    { slug: 'hue',       name: 'Huế',        lat: 16.462, lon: 107.595 },
+  ];
+
+  const lats    = provinces.map(p => p.lat);
+  const lons    = provinces.map(p => p.lon);
+  const aqiVals = provinces.map(p => p.slug === activeSlug ? aqi : mockAQI[p.slug]);
+  const colors  = aqiVals.map(v => aqiColor(v));
+  const labels  = provinces.map(p => p.name);
+  const sizes   = provinces.map(p => p.slug === activeSlug ? 36 : 26);
+  const texts   = aqiVals.map((v, i) =>
+    `<b>${provinces[i].name}</b><br>AQI: <b>${Math.round(v)}</b> — ${AQI_LABELS[aqiLevel(v)]}`
+  );
+
   return (
-    <div style={{ position: 'relative', background: 'linear-gradient(180deg,#dceeff 0%,#e8f5e9 100%)', borderRadius: 12, overflow: 'hidden', height: 260 }}>
-      {/* SVG map background - simplified Vietnam coast outline */}
-      <svg viewBox="0 0 120 200" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.15 }}>
-        <path d="M60,5 L75,20 L80,40 L70,60 L75,80 L65,100 L70,120 L60,140 L50,160 L45,180 L55,195 L40,190 L35,170 L45,150 L40,130 L50,110 L45,90 L55,70 L50,50 L55,30 Z" fill="#2196f3" />
-      </svg>
+    <Plot
+      data={[{
+        type: 'scattermapbox',
+        lat: lats, lon: lons,
+        mode: 'markers+text',
+        marker: {
+          size: sizes,
+          color: colors,
+          opacity: 0.92,
+          allowoverlap: true,
+        },
+        text: provinces.map((p, i) =>
+          `<b style="font-size:14px">${Math.round(aqiVals[i])}</b>`
+        ),
+        textposition: 'middle center',
+        textfont: {
+          size: provinces.map(p => p.slug === activeSlug ? 13 : 11),
+          color: aqiVals.map(v => AQI_TEXT_COLORS[aqiLevel(v)]),
+        },
+        customdata: texts,
+        hovertemplate: '%{customdata}<extra></extra>',
+      }]}
+      layout={{
+        mapbox: {
+          style: 'open-street-map',
+          center: { lat: 18.2, lon: 106.2 },
+          zoom: 5.4,
+        },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        margin: { l: 0, r: 0, t: 0, b: 0 },
+        height: 340,
+        showlegend: false,
+      }}
+      config={{ displayModeBar: false, responsive: true, scrollZoom: false }}
+      style={{ width: '100%', borderRadius: 10, overflow: 'hidden' }}
+    />
+  );
+}
 
-      {/* Province markers */}
-      {Object.entries(PROVINCE_COORDS).map(([slug, pos]) => {
-        const isActive = slug === activeSlug;
-        const mAqi     = isActive ? aqi : mockAQI[slug];
-        const mColor   = aqiColor(mAqi);
-        const mLabel   = isActive ? label : AQI_LABELS[aqiLevel(mAqi)];
-
-        return (
-          <div key={slug} style={{
-            position: 'absolute',
-            left: `${pos.x}%`, top: `${pos.y}%`,
-            transform: 'translate(-50%, -50%)',
-            zIndex: isActive ? 10 : 5,
-          }}>
-            {/* Pulse ring for active */}
-            {isActive && (
-              <div style={{
-                position: 'absolute', inset: -8,
-                borderRadius: '50%', border: `3px solid ${mColor}`,
-                animation: 'pulse 1.5s infinite',
-                opacity: 0.5,
-              }} />
-            )}
-            {/* Marker */}
-            <div style={{
-              width: isActive ? 52 : 44, height: isActive ? 52 : 44,
-              borderRadius: '50%', background: mColor,
-              border: `3px solid ${isActive ? '#fff' : 'rgba(255,255,255,0.7)'}`,
-              boxShadow: isActive ? `0 4px 16px ${mColor}88` : '0 2px 8px rgba(0,0,0,0.2)',
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', transition: 'all 0.2s',
-            }}>
-              <div style={{ fontSize: isActive ? '0.95rem' : '0.8rem', fontWeight: 900, color: AQI_TEXT_COLORS[aqiLevel(mAqi)], lineHeight: 1 }}>
-                {Math.round(mAqi)}
-              </div>
-            </div>
-            {/* Label */}
-            <div style={{
-              position: 'absolute', top: '105%', left: '50%',
-              transform: 'translateX(-50%)',
-              background: isActive ? '#1e293b' : 'rgba(30,41,59,0.75)',
-              color: '#fff', borderRadius: 6, padding: '2px 7px',
-              fontSize: '0.65rem', fontWeight: 600, whiteSpace: 'nowrap',
-              marginTop: 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-            }}>
-              {pos.name}
-            </div>
-          </div>
-        );
-      })}
 
       {/* Legend */}
       <div style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(255,255,255,0.92)', borderRadius: 8, padding: '8px 10px', fontSize: '0.68rem' }}>
