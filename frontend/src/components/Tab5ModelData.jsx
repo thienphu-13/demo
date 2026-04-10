@@ -60,7 +60,6 @@ export default function Tab5ModelData({ slug }) {
           y: sorted.map(m => (m.is_best ? '⭐ ' : '') + m.name),
           marker: { color: barColors, line: { color: 'rgba(0,0,0,0.1)', width: 1 } },
           textposition: 'outside',
-          textposition: 'middle right',
           textfont: { size: 11 },
         }]}
           layout={{
