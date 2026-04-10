@@ -54,18 +54,18 @@ export default function Tab5ModelData({ slug }) {
           Mô hình màu vàng = best model. RMSE thấp hơn = dự báo chính xác hơn.
         </p>
         <Plot
-          data={[{
-            type: 'bar', orientation: 'h',
-            x: sorted.map(m => m.rmse),
-            y: sorted.map(m => (m.is_best ? '⭐ ' : '') + m.name),
-            marker: { color: barColors, line: { color: 'rgba(0,0,0,0.1)', width: 1 } },
-            text: sorted.map(m => m.rmse.toFixed(3)),
-            textposition: 'outside',
-            textfont: { size: 11 },
-          }]}
+        data={[{
+          type: 'scatter', mode: 'markers+text',
+          x: sorted.map(m => m.rmse),
+          y: sorted.map(m => (m.is_best ? '⭐ ' : '') + m.name),
+          marker: { color: barColors, size: 14, line: { color: 'rgba(0,0,0,0.2)', width: 1 } },
+          text: sorted.map(m => m.rmse.toFixed(3)),
+          textposition: 'middle right',
+          textfont: { size: 11 },
+        }]}
           layout={{
             ...L,
-            xaxis: { title: 'RMSE (thấp hơn = tốt hơn)', gridcolor: 'rgba(0,0,0,0.06)' },
+            xaxis: { title: 'RMSE', range: [0, 25], gridcolor: 'rgba(0,0,0,0.06)', zeroline: true },
             yaxis: { tickfont: { size: 11 }, automargin: true },
             height: 530,
             showlegend: false,
