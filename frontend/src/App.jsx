@@ -139,7 +139,7 @@ export default function App() {
       </main>
 
       <footer style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: '0.78rem', borderTop: '1px solid #e0e7f0', background: '#fff', marginTop: 32 }}>
-        Nguồn dữ liệu: Open-Meteo CAMS Global &nbsp;|&nbsp; Giai đoạn: 08/2022 – 03/2026 &nbsp;|&nbsp; React + FastAPI
+        Nguồn dữ liệu: Open-Meteo CAMS Global &nbsp;|&nbsp; &nbsp;|&nbsp; React + FastAPI
       </footer>
     </div>
   );
