@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: aqi-forecast-api
+    env: python
+    region: singapore          # gần Việt Nam nhất
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GCP_SA_JSON
+        sync: false            # dán JSON service account vào Render Dashboard
+      - key: DRIVE_FOLDER_ID
+        sync: false            # ID thư mục Google Drive chứa .pkl
+      - key: ADMIN_TOKEN
+        generateValue: true    # token bảo vệ endpoint /api/sync
+      - key: ALLOWED_ORIGINS
+        value: https://your-app.vercel.app  # thay bằng URL Vercel của bạn
