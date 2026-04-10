@@ -287,6 +287,9 @@ function ProvinceMapWide({ activeSlug, forecastData }) {
           </div>
         );
       })}
+    </div>
+  );
+}
 
 // ── Health Advisory Card (thay thế EvalCard — không trùng Tab5) ──────────────
 function HealthAdvisory({ recommendation, forecast }) {
