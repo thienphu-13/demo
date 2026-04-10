@@ -301,7 +301,7 @@ export default function Tab1Forecast({ data, loading }) {
       {/* ── Forecast Chart ────────────────────────────────────────────────── */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
         <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
-          Dự báo AQI — 72 giờ tiếp theo
+          Dự báo AQI
         </h2>
         <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 12 }}>
           Dự báo đa bước sử dụng mô hình PCA + Machine Learning. Dữ liệu đầu vào: 08/2022 – 03/2026.
