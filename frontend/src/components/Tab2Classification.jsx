@@ -7,7 +7,7 @@ const PROVINCES = [
   { slug: 'thanh_hoa', name: 'Thanh Hóa' },
   { slug: 'nghe_an',   name: 'Nghệ An'   },
   { slug: 'ha_tinh',   name: 'Hà Tĩnh'   },
-  { slug: 'hue',       name: 'Huế'        },
+  { slug: 'hue',       name: 'Huế'       },
 ];
 
 const L = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font: { family: 'Inter, sans-serif', size: 12 } };
@@ -65,7 +65,7 @@ function ProvinceCard({ name, data, isActive }) {
           ].map(({ label, key, unit }) => (
             <div key={key} style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0369a1' }}>
-                {data.weather?.[key] != null ? data.weather[key].toFixed(1) : '—'}
+                {data.weather?.[key] != null ? data.weather[key].toFixed(1) : '-'}
                 <span style={{ fontSize: '0.6rem', color: '#64748b' }}> {unit}</span>
               </div>
               <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>{label}</div>
@@ -97,23 +97,22 @@ function ComparisonChart({ allData }) {
   return (
     <Plot
       data={[{
-        type: 'scatter', mode: 'lines+markers+text',
+        type: 'bar',
         x: names,
         y: aqiVals,
-        line: { color: '#1565c0', width: 2.5, shape: 'spline' },
-        marker: { color: colors, size: 18, line: { color: '#fff', width: 2 } },
+        marker: { color: colors, line: { color: 'rgba(0,0,0,0.1)', width: 1 } },
         text: aqiVals.map((v, i) => `<b>${Math.round(v)}</b><br>${labels[i]}`),
-        textposition: 'top center',
+        textposition: 'outside',
         textfont: { size: 11, color: '#333' },
         customdata: labels,
         hovertemplate: '<b>%{x}</b><br>AQI: <b>%{y:.0f}</b><br>%{customdata}<extra></extra>',
     }]}
     layout={{
         ...L,
-        xaxis: { tickfont: { size: 12 }, gridcolor: 'rgba(0,0,0,0.04)' },
-        yaxis: { title: 'US AQI', range: [0, Math.max(...aqiVals, 50) * 1.6], gridcolor: 'rgba(0,0,0,0.06)' },
+        xaxis: { tickfont: { size: 13 } },
+        yaxis: { title: 'US AQI', gridcolor: 'rgba(0,0,0,0.06)' },
         shapes,
-        showlegend: false, height: 320,
+        showlegend: false, height: 320, bargap: 0.45,
         margin: { l: 50, r: 30, t: 50, b: 50 },
     }}
     config={{ displayModeBar: false, responsive: true }}
@@ -149,7 +148,7 @@ function PollutantCompareTable({ allData }) {
               <td style={{ padding: '9px 14px', fontWeight: 600, color: '#334155' }}>{name}</td>
               {allData.map((d, i) => {
                 const val = d?.pollutants?.[key]?.value;
-                if (val == null) return <td key={i} style={{ padding: '9px 14px', textAlign: 'center', color: '#94a3b8' }}>—</td>;
+                if (val == null) return <td key={i} style={{ padding: '9px 14px', textAlign: 'center', color: '#94a3b8' }}>-</td>;
                 const color = val <= who ? '#2e7d32' : val <= vn ? '#f57c00' : '#c62828';
                 return (
                   <td key={i} style={{ padding: '9px 14px', textAlign: 'center', fontWeight: 700, color }}>
@@ -184,7 +183,7 @@ export default function Tab2Classification({ data: activeData }) {
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg,#1565c0,#0097a7)', borderRadius: 14, padding: '18px 22px', color: '#fff' }}>
         <div style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 4 }}>
-          So sánh Chất lượng Không khí — 4 tỉnh Miền Trung
+          So sánh Chất lượng Không khí - 4 tỉnh Miền Trung
         </div>
         <div style={{ fontSize: '0.85rem', opacity: 0.88 }}>
           Dữ liệu quan trắc tổng hợp từ Open-Meteo CAMS Global
@@ -201,10 +200,10 @@ export default function Tab2Classification({ data: activeData }) {
       {/* Comparison Bar Chart */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 18, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
         <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.95rem' }}>
-          Biểu đồ so sánh AQI — 4 tỉnh
+          Biểu đồ so sánh AQI - 4 tỉnh
         </div>
         <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 10 }}>
-          Giá trị AQI hiện tại. Màu thanh theo mức phân loại AQI (US Standard).
+          Giá trị AQI tại thười điểm hiện tại. Màu thanh theo mức phân loại AQI (US Standard).
         </div>
         {loading ? <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Đang tải...</div>
           : <ComparisonChart allData={allData} />}
@@ -213,7 +212,7 @@ export default function Tab2Classification({ data: activeData }) {
       {/* Pollutant Comparison Table */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 18, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
         <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.95rem' }}>
-          Bảng so sánh chỉ số ô nhiễm — 4 tỉnh
+          Bảng so sánh chỉ số ô nhiễm - 4 tỉnh
         </div>
         <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 12 }}>
           Xanh = dưới WHO · Cam = trên WHO · Đỏ = vượt QCVN 05:2023
@@ -226,7 +225,7 @@ export default function Tab2Classification({ data: activeData }) {
       {!loading && (
         <div style={{ background: '#fff', borderRadius: 14, padding: 18, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
           <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 12, fontSize: '0.95rem' }}>
-            Dự báo AQI 72h — So sánh 4 tỉnh
+            Dự báo AQI 72h - So sánh 4 tỉnh
           </div>
           <Plot
             data={PROVINCES.map((p, i) => ({
