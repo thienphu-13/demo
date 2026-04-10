@@ -119,7 +119,33 @@ export default function App() {
           ))}
         </div>
       </div>
-
+      
+{/* Province selector — chỉ hiện ở tab cần thiết */}
+{['forecast','history','models'].includes(activeTab) && (
+  <div style={{ maxWidth: 1200, margin: '0 auto', padding: '12px 16px 0' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Chọn tỉnh:</span>
+      <select
+        value={activeSlug}
+        onChange={e => setActiveSlug(e.target.value)}
+        style={{
+          padding: '7px 14px', borderRadius: 8,
+          border: '1px solid #e0e7f0',
+          fontSize: '0.92rem', fontWeight: 600,
+          background: '#fff', color: '#1e293b',
+          cursor: 'pointer', outline: 'none',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        }}
+      >
+        {provinces.map(p => (
+          <option key={p.slug} value={p.slug}>{p.name}</option>
+        ))}
+      </select>
+      {loading && <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>⏳ Đang tải...</span>}
+    </div>
+  </div>
+)}
+      
       {/* ── Content ─────────────────────────────────────────────────────── */}
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px' }}>
         {loading && !forecastData ? <LoadingSkeleton /> : (
