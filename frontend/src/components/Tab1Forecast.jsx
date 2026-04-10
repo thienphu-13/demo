@@ -6,37 +6,55 @@ const L = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font:
 
 // ── Sticky AQI Legend (position:fixed top-right) ──────────────────────────────
 function StickyAQILegend({ currentLevel }) {
+  const rows = [
+    { label: 'Tốt',       range: '0 – 49',   desc: 'Không ảnh hưởng sức khỏe.' },
+    { label: 'Trung bình',range: '50 – 99',  desc: 'Ảnh hưởng người rất nhạy cảm.' },
+    { label: 'Kém',       range: '100 – 149',desc: 'Có hại cho nhóm dễ bị ảnh hưởng.' },
+    { label: 'Xấu',       range: '150 – 199',desc: 'Ảnh hưởng sức khỏe toàn dân.' },
+    { label: 'Rất xấu',   range: '200 – 299',desc: 'Khẩn cấp với nhóm dễ bị ảnh hưởng.' },
+    { label: 'Nguy hại',  range: '300 – 499',desc: 'Tình trạng khẩn cấp môi trường.' },
+  ];
   return (
     <div style={{
-      position: 'fixed', top: 80, right: 14, zIndex: 999,
+      position: 'fixed', top: 75, right: 14, zIndex: 999,
       background: 'rgba(255,255,255,0.97)',
-      borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-      padding: '10px 12px', width: 142,
-      border: '1px solid #e0e7f0',
+      borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+      border: '1px solid #e0e7f0', overflow: 'hidden',
+      width: 340,
     }}>
-      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '7px 12px', borderBottom: '1px solid #f1f5f9', background: '#f8fafd' }}>
         Thang AQI
       </div>
-      {AQI_LABELS.map((label, i) => {
-        const isActive = i === currentLevel;
-        return (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '3px 6px', borderRadius: 6, marginBottom: 2,
-            background: isActive ? `${AQI_COLORS[i]}22` : 'transparent',
-            border: isActive ? `1.5px solid ${AQI_COLORS[i]}` : '1.5px solid transparent',
-            transition: 'all 0.2s',
-          }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: AQI_COLORS[i], flexShrink: 0 }} />
-            <div style={{ fontSize: '0.68rem', fontWeight: isActive ? 800 : 500, color: isActive ? AQI_COLORS[i] : '#64748b' }}>
-              {label}
-            </div>
-            {isActive && (
-              <div style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, color: AQI_COLORS[i] }}>◀</div>
-            )}
-          </div>
-        );
-      })}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem' }}>
+        <thead>
+          <tr style={{ background: '#f1f5f9' }}>
+            {['Mức', 'AQI', 'Ý nghĩa'].map(h => (
+              <th key={h} style={{ padding: '5px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.65rem' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const isActive = i === currentLevel;
+            return (
+              <tr key={i} style={{
+                background: isActive ? `${AQI_COLORS[i]}18` : 'transparent',
+                borderLeft: isActive ? `3px solid ${AQI_COLORS[i]}` : '3px solid transparent',
+                transition: 'all 0.2s',
+              }}>
+                <td style={{ padding: '4px 10px', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: AQI_COLORS[i], flexShrink: 0 }} />
+                    <span style={{ fontWeight: isActive ? 800 : 500, color: isActive ? AQI_COLORS[i] : '#334155' }}>{row.label}</span>
+                  </div>
+                </td>
+                <td style={{ padding: '4px 10px', color: '#64748b', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '0.68rem' }}>{row.range}</td>
+                <td style={{ padding: '4px 10px', color: isActive ? '#334155' : '#64748b', fontWeight: isActive ? 600 : 400 }}>{row.desc}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
