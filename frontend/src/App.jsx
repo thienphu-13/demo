@@ -66,10 +66,6 @@ export default function App() {
 
           {/* Province Selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <select
-              value={activeSlug}
-              onChange={e => setActiveSlug(e.target.value)}
-            >
               {provinces.map(p => (
                 <option key={p.slug} value={p.slug} style={{ color: '#1a202c', background: '#fff' }}>
                   {p.name}
