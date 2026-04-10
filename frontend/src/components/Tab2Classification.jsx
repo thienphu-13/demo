@@ -97,25 +97,27 @@ function ComparisonChart({ allData }) {
   return (
     <Plot
       data={[{
-        type: 'bar',
-        x: names, y: aqiVals,
-        marker: { color: colors, line: { color: 'rgba(0,0,0,0.1)', width: 1 } },
-        text: aqiVals.map((v,i) => `<b>${Math.round(v)}</b><br>${labels[i]}`),
-        textposition: 'outside',
-        textfont: { size: 11 },
+        type: 'scatter', mode: 'lines+markers+text',
+        x: names,
+        y: aqiVals,
+        line: { color: '#1565c0', width: 2.5, shape: 'spline' },
+        marker: { color: colors, size: 18, line: { color: '#fff', width: 2 } },
+        text: aqiVals.map((v, i) => `<b>${Math.round(v)}</b><br>${labels[i]}`),
+        textposition: 'top center',
+        textfont: { size: 11, color: '#333' },
         customdata: labels,
         hovertemplate: '<b>%{x}</b><br>AQI: <b>%{y:.0f}</b><br>%{customdata}<extra></extra>',
-      }]}
-      layout={{
+    }]}
+    layout={{
         ...L,
-        xaxis: { tickfont: { size: 12 } },
-        yaxis: { title: 'US AQI', range: [0, Math.max(...aqiVals, 50) * 1.5], gridcolor: 'rgba(0,0,0,0.06)' },
+        xaxis: { tickfont: { size: 12 }, gridcolor: 'rgba(0,0,0,0.04)' },
+        yaxis: { title: 'US AQI', range: [0, Math.max(...aqiVals, 50) * 1.6], gridcolor: 'rgba(0,0,0,0.06)' },
         shapes,
-        showlegend: false, height: 320, bargap: 0.45,
-        margin: { l: 50, r: 30, t: 20, b: 50 },
-      }}
-      config={{ displayModeBar: false, responsive: true }}
-      style={{ width: '100%' }}
+        showlegend: false, height: 320,
+        margin: { l: 50, r: 30, t: 50, b: 50 },
+    }}
+    config={{ displayModeBar: false, responsive: true }}
+    style={{ width: '100%' }}
     />
   );
 }
@@ -185,7 +187,7 @@ export default function Tab2Classification({ data: activeData }) {
           So sánh Chất lượng Không khí — 4 tỉnh Miền Trung
         </div>
         <div style={{ fontSize: '0.85rem', opacity: 0.88 }}>
-          Dữ liệu quan trắc tổng hợp từ Open-Meteo CAMS Global · Giai đoạn: 08/2022 – 03/2026
+          Dữ liệu quan trắc tổng hợp từ Open-Meteo CAMS Global
         </div>
       </div>
 
