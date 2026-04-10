@@ -128,8 +128,6 @@ export default function Tab5ModelData({ slug }) {
       {/* Info footer */}
       <div style={{ background: '#e8f4fd', borderLeft: '3px solid #1565c0', borderRadius: '0 8px 8px 0', padding: '12px 16px', fontSize: '0.8rem', color: '#1a3a5c' }}>
         Nguồn dữ liệu: Open-Meteo Air Quality API (CAMS Global) + ERA5 Weather.
-        Giai đoạn dữ liệu: 08/2022 – 03/2026. Dự báo đa bước: 1h / 3h / 6h / 12h / 24h / 48h / 72h.
-        Mô hình NBEATS bị loại do kết quả âm ở một số tỉnh.
       </div>
 
     </div>
