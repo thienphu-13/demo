@@ -210,7 +210,7 @@ export default function Tab1Forecast({ data, loading }) {
             <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>
               Chỉ số ô nhiễm — so sánh với ngưỡng WHO và QCVN 05:2023
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
               {pollutantKeys.map(key => pollutants[key] && <PollutantCard key={key} data={pollutants[key]} />)}
             </div>
 
