@@ -63,16 +63,6 @@ export default function App() {
               Dữ liệu: 08/2022 – 03/2026 &nbsp;|&nbsp; Phương pháp: PCA + Machine Learning
             </p>
           </div>
-
-          {/* Province Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {provinces.map(p => (
-                <option key={p.slug} value={p.slug} style={{ color: '#1a202c', background: '#fff' }}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
       </header>
 
