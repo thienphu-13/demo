@@ -69,12 +69,6 @@ export default function App() {
             <select
               value={activeSlug}
               onChange={e => setActiveSlug(e.target.value)}
-              style={{
-                padding: '7px 14px', borderRadius: 8, border: 'none',
-                fontSize: '0.92rem', fontWeight: 600,
-                background: 'rgba(255,255,255,0.18)', color: '#fff',
-                cursor: 'pointer', outline: 'none',
-              }}
             >
               {provinces.map(p => (
                 <option key={p.slug} value={p.slug} style={{ color: '#1a202c', background: '#fff' }}>
