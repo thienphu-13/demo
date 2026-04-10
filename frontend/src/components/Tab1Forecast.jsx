@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import { AQI_BINS, AQI_LABELS, AQI_COLORS, AQI_RGBA, AQI_TEXT_COLORS, aqiLevel, aqiColor } from '../constants.js';
+import React, { useEffect, useState } from 'react';
 
 const L = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font: { family: 'Inter, sans-serif', size: 12 } };
 
 // ── Sticky AQI Legend (position:fixed top-right) ──────────────────────────────
 function StickyAQILegend({ currentLevel }) {
+  const [open, setOpen] = useState(true);
   const rows = [
     { label: 'Tốt',       range: '0 – 49',   desc: 'Không ảnh hưởng sức khỏe.' },
     { label: 'Trung bình',range: '50 – 99',  desc: 'Ảnh hưởng người rất nhạy cảm.' },
@@ -20,41 +22,66 @@ function StickyAQILegend({ currentLevel }) {
       background: 'rgba(255,255,255,0.97)',
       borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
       border: '1px solid #e0e7f0', overflow: 'hidden',
-      width: 340,
+      width: open ? 340 : 'auto',
+      transition: 'width 0.25s ease',
     }}>
-      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '7px 12px', borderBottom: '1px solid #f1f5f9', background: '#f8fafd' }}>
-        Thang AQI
+      {/* Header — click để toggle */}
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          fontSize: '0.65rem', fontWeight: 800, color: '#475569',
+          textTransform: 'uppercase', letterSpacing: '0.06em',
+          padding: '7px 12px',
+          borderBottom: open ? '1px solid #f1f5f9' : 'none',
+          background: '#f8fafd',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          userSelect: 'none',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Dot màu mức hiện tại */}
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: AQI_COLORS[currentLevel], display: 'inline-block' }} />
+          Thang AQI
+        </span>
+        <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: 10 }}>
+          {open ? '▲ Thu gọn' : '▼ Mở rộng'}
+        </span>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem' }}>
-        <thead>
-          <tr style={{ background: '#f1f5f9' }}>
-            {['Mức', 'AQI', 'Ý nghĩa'].map(h => (
-              <th key={h} style={{ padding: '5px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.65rem' }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => {
-            const isActive = i === currentLevel;
-            return (
-              <tr key={i} style={{
-                background: isActive ? `${AQI_COLORS[i]}18` : 'transparent',
-                borderLeft: isActive ? `3px solid ${AQI_COLORS[i]}` : '3px solid transparent',
-                transition: 'all 0.2s',
-              }}>
-                <td style={{ padding: '4px 10px', whiteSpace: 'nowrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: AQI_COLORS[i], flexShrink: 0 }} />
-                    <span style={{ fontWeight: isActive ? 800 : 500, color: isActive ? AQI_COLORS[i] : '#334155' }}>{row.label}</span>
-                  </div>
-                </td>
-                <td style={{ padding: '4px 10px', color: '#64748b', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '0.68rem' }}>{row.range}</td>
-                <td style={{ padding: '4px 10px', color: isActive ? '#334155' : '#64748b', fontWeight: isActive ? 600 : 400 }}>{row.desc}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+
+      {/* Table — chỉ hiện khi open */}
+      {open && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem' }}>
+          <thead>
+            <tr style={{ background: '#f1f5f9' }}>
+              {['Mức', 'AQI', 'Ý nghĩa'].map(h => (
+                <th key={h} style={{ padding: '5px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.65rem' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              const isActive = i === currentLevel;
+              return (
+                <tr key={i} style={{
+                  background: isActive ? `${AQI_COLORS[i]}18` : 'transparent',
+                  borderLeft: isActive ? `3px solid ${AQI_COLORS[i]}` : '3px solid transparent',
+                }}>
+                  <td style={{ padding: '4px 10px', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{ width: 9, height: 9, borderRadius: '50%', background: AQI_COLORS[i], flexShrink: 0 }} />
+                      <span style={{ fontWeight: isActive ? 800 : 500, color: isActive ? AQI_COLORS[i] : '#334155' }}>{row.label}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '4px 10px', color: '#64748b', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '0.68rem' }}>{row.range}</td>
+                  <td style={{ padding: '4px 10px', color: isActive ? '#334155' : '#64748b', fontWeight: isActive ? 600 : 400 }}>{row.desc}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
