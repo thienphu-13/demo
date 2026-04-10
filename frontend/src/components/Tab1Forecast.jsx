@@ -182,15 +182,46 @@ function SafeWindows({ forecast }) {
   );
 }
 
-// ── Province Map (SVG-based, no external dep) ─────────────────────────────────
+
+// ── Gauge Chart ───────────────────────────────────────────────────────────────
+function GaugeChart({ aqi, label, color }) {
+  return (
+    <Plot
+      data={[{
+        type: 'indicator', mode: 'gauge+number', value: aqi,
+        number: { font: { size: 56, color }, suffix: '' },
+        title: { text: `<b>${label}</b>`, font: { size: 15, color } },
+        gauge: {
+          axis: { range: [0, 300], tickwidth: 1, tickfont: { size: 10 }, nticks: 7 },
+          bar: { color, thickness: 0.28 }, bgcolor: 'white', borderwidth: 0,
+          steps: [
+            { range: [0,   50],  color: '#d4f8d4' }, { range: [50,  100], color: '#fdfac4' },
+            { range: [100, 150], color: '#fde3bc' }, { range: [150, 200], color: '#fbbaba' },
+            { range: [200, 300], color: '#e8c7ee' },
+          ],
+          threshold: { line: { color: '#333', width: 3 }, thickness: 0.8, value: aqi },
+        },
+        domain: { x: [0, 1], y: [0.08, 1] },
+      }]}
+      layout={{
+        height: 230, margin: { l: 15, r: 15, t: 15, b: 5 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+      }}
+      config={{ displayModeBar: false, responsive: true }}
+      style={{ width: '100%' }}
+    />
+  );
+}
+
+// ── Province Map Wide (full-width) ──────────────────────────────────────────
 const PROVINCE_COORDS = {
-  thanh_hoa: { x: 62, y: 28,  name: 'Thanh Hóa' },
-  nghe_an:   { x: 48, y: 48,  name: 'Nghệ An'   },
-  ha_tinh:   { x: 55, y: 66,  name: 'Hà Tĩnh'   },
-  hue:       { x: 68, y: 108, name: 'Huế'        },
+  thanh_hoa: { x: 30, y: 18,  name: 'Thanh Hóa' },
+  nghe_an:   { x: 22, y: 38,  name: 'Nghệ An'   },
+  ha_tinh:   { x: 27, y: 55,  name: 'Hà Tĩnh'   },
+  hue:       { x: 38, y: 82,  name: 'Huế'        },
 };
 
-function ProvinceMap({ activeSlug, forecastData }) {
+function ProvinceMapWide({ activeSlug, forecastData }) {
   const aqi   = forecastData?.current?.aqi ?? 0;
   const color = forecastData?.current?.color ?? '#ccc';
   const label = forecastData?.current?.label ?? '';
@@ -199,7 +230,7 @@ function ProvinceMap({ activeSlug, forecastData }) {
   const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
 
   return (
-    <div style={{ position: 'relative', background: 'linear-gradient(180deg,#dceeff 0%,#e8f5e9 100%)', borderRadius: 12, overflow: 'hidden', height: 280 }}>
+    <div style={{ position: 'relative', background: 'linear-gradient(180deg,#dceeff 0%,#e8f5e9 100%)', borderRadius: 12, overflow: 'hidden', height: 260 }}>
       {/* SVG map background - simplified Vietnam coast outline */}
       <svg viewBox="0 0 120 200" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.15 }}>
         <path d="M60,5 L75,20 L80,40 L70,60 L75,80 L65,100 L70,120 L60,140 L50,160 L45,180 L55,195 L40,190 L35,170 L45,150 L40,130 L50,110 L45,90 L55,70 L50,50 L55,30 Z" fill="#2196f3" />
@@ -215,7 +246,7 @@ function ProvinceMap({ activeSlug, forecastData }) {
         return (
           <div key={slug} style={{
             position: 'absolute',
-            left: `${pos.x}%`, top: `${pos.y / 1.6}%`,
+            left: `${pos.x}%`, top: `${pos.y}%`,
             transform: 'translate(-50%, -50%)',
             zIndex: isActive ? 10 : 5,
           }}>
@@ -324,10 +355,13 @@ export default function Tab1Forecast({ data }) {
       {/* ── Hero AQI ──────────────────────────────────────────────────── */}
       <AQIHero current={current} recommendation={recommendation} province={province} />
 
-      {/* ── 2-col: Map + Pollutants ───────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, alignItems: 'start' }}>
+      {/* ── 2-col: Gauge + Pollutants ─────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16, alignItems: 'start' }}>
         <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-          <ProvinceMap activeSlug={slug || 'thanh_hoa'} forecastData={data} />
+          <GaugeChart aqi={current.aqi} label={current.label} color={current.color} />
+          <p style={{ textAlign: 'center', fontSize: '0.82rem', color: '#555', marginTop: 4, lineHeight: 1.5, padding: '0 6px' }}>
+            {recommendation?.desc}
+          </p>
         </div>
         <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 6px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <PollutantGrid pollutants={pollutants} />
@@ -336,6 +370,14 @@ export default function Tab1Forecast({ data }) {
             <WeatherRow weather={weather} />
           </div>
         </div>
+      </div>
+
+      {/* ── Map full-width ────────────────────────────────────────────── */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 8, fontSize: '0.92rem' }}>
+          Bản đồ AQI — 4 tỉnh Miền Trung
+        </div>
+        <ProvinceMapWide activeSlug={slug || 'thanh_hoa'} forecastData={data} />
       </div>
 
       {/* ── Forecast Chart ────────────────────────────────────────────── */}
