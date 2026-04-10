@@ -33,7 +33,7 @@ export default function Tab5ModelData({ slug }) {
       {/* ── RMSE bar chart ───────────────────────────────────────────────── */}
       <div style={{ background: '#fff', borderRadius: 12, padding: 18, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
         <h3 style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.95rem' }}>
-          So sánh RMSE — {data.name}
+          So sánh RMSE - {data.name}
         </h3>
         <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 10 }}>
           Mô hình màu vàng = best model. RMSE thấp hơn = dự báo chính xác hơn.
@@ -84,7 +84,7 @@ export default function Tab5ModelData({ slug }) {
                   <td style={{ padding: '8px 16px' }}>{m.is_best ? '⭐ ' : ''}{m.name}</td>
                   <td style={{ padding: '8px 16px', textAlign: 'center', fontFamily: 'monospace' }}>{m.rmse.toFixed(3)}</td>
                   <td style={{ padding: '8px 16px', textAlign: 'center', fontFamily: 'monospace' }}>{m.wla.toFixed(1)}</td>
-                  <td style={{ padding: '8px 16px', textAlign: 'center', fontFamily: 'monospace' }}>{m.r2?.toFixed(3) ?? '—'}</td>
+                  <td style={{ padding: '8px 16px', textAlign: 'center', fontFamily: 'monospace' }}>{m.r2?.toFixed(3) ?? '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -117,7 +117,7 @@ export default function Tab5ModelData({ slug }) {
                   <td style={{ padding: '10px 16px', textAlign: 'center', fontFamily: 'monospace' }}>{row.n_pc}</td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', fontFamily: 'monospace', color: '#dc2626' }}>{row.rmse.toFixed(3)}</td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', fontFamily: 'monospace', color: '#7c3aed' }}>{row.wla.toFixed(1)}</td>
-                  <td style={{ padding: '10px 16px', textAlign: 'center', fontFamily: 'monospace', color: '#16a34a', fontWeight: 700 }}>{row.r2?.toFixed(3) ?? '—'}</td>
+                  <td style={{ padding: '10px 16px', textAlign: 'center', fontFamily: 'monospace', color: '#16a34a', fontWeight: 700 }}>{row.r2?.toFixed(3) ?? '-'}</td>
                 </tr>
               ))}
             </tbody>
