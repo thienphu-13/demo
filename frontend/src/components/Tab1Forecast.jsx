@@ -8,12 +8,12 @@ const L = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font:
 function StickyAQILegend({ currentLevel }) {
   const [open, setOpen] = useState(true);
   const rows = [
-    { label: 'Tốt',       range: '0 – 49',   desc: 'Không ảnh hưởng sức khỏe.' },
-    { label: 'Trung bình',range: '50 – 99',  desc: 'Ảnh hưởng người rất nhạy cảm.' },
-    { label: 'Kém',       range: '100 – 149',desc: 'Có hại cho nhóm dễ bị ảnh hưởng.' },
-    { label: 'Xấu',       range: '150 – 199',desc: 'Ảnh hưởng sức khỏe toàn dân.' },
-    { label: 'Rất xấu',   range: '200 – 299',desc: 'Khẩn cấp với nhóm dễ bị ảnh hưởng.' },
-    { label: 'Nguy hại',  range: '300 – 499',desc: 'Tình trạng khẩn cấp môi trường.' },
+    { label: 'Tốt',       range: '0 - 49',   desc: 'Không ảnh hưởng sức khỏe.' },
+    { label: 'Trung bình',range: '50 - 99',  desc: 'Ảnh hưởng người rất nhạy cảm.' },
+    { label: 'Kém',       range: '100 - 149',desc: 'Có hại cho nhóm dễ bị ảnh hưởng.' },
+    { label: 'Xấu',       range: '150 - 199',desc: 'Ảnh hưởng sức khỏe toàn dân.' },
+    { label: 'Rất xấu',   range: '200 - 299',desc: 'Khẩn cấp với nhóm dễ bị ảnh hưởng.' },
+    { label: 'Nguy hại',  range: '300 - 499',desc: 'Tình trạng khẩn cấp môi trường.' },
   ];
   return (
     <div style={{
@@ -24,7 +24,7 @@ function StickyAQILegend({ currentLevel }) {
       width: open ? 340 : 'auto',
       transition: 'width 0.25s ease',
     }}>
-      {/* Header — click để toggle */}
+      {/* Header - click để toggle */}
       <div
         onClick={() => setOpen(o => !o)}
         style={{
@@ -49,7 +49,7 @@ function StickyAQILegend({ currentLevel }) {
         </span>
       </div>
 
-      {/* Table — chỉ hiện khi open */}
+      {/* Table - chỉ hiện khi open */}
       {open && (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem' }}>
           <thead>
@@ -129,7 +129,7 @@ function PollutantGrid({ pollutants }) {
   return (
     <div>
       <div style={{ fontWeight: 700, color: '#475569', fontSize: '0.78rem', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        Chỉ số ô nhiễm — So sánh ngưỡng WHO & QCVN 05:2023
+        Chỉ số ô nhiễm - So sánh ngưỡng WHO & QCVN 05:2023
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
         {keys.map(key => {
@@ -171,7 +171,7 @@ function WeatherRow({ weather }) {
         <div key={key} style={{ background: '#f0f9ff', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
           <div style={{ fontSize: '1.1rem', marginBottom: 2 }}>{icon}</div>
           <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0369a1' }}>
-            {weather[key] != null ? weather[key].toFixed(1) : '—'}
+            {weather[key] != null ? weather[key].toFixed(1) : '-'}
             <span style={{ fontSize: '0.6rem', fontWeight: 400, color: '#64748b' }}> {unit}</span>
           </div>
           <div style={{ fontSize: '0.63rem', color: '#64748b', marginTop: 1 }}>{label}</div>
@@ -208,7 +208,7 @@ function GaugeChart({ aqi, label, color }) {
   );
 }
 
-// ── Province Map — scattermapbox với OpenStreetMap thật ───────────────────────
+// ── Province Map - scattermapbox với OpenStreetMap thật ───────────────────────
 function ProvinceMapWide({ activeSlug, forecastData }) {
   const aqi = forecastData?.current?.aqi ?? 0;
   const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
@@ -222,7 +222,7 @@ function ProvinceMapWide({ activeSlug, forecastData }) {
   const colors  = aqiVals.map(v => aqiColor(v));
   const sizes   = provinces.map(p => p.slug === activeSlug ? 38 : 28);
   const customdata = aqiVals.map((v, i) =>
-    `<b>${provinces[i].name}</b><br>AQI: <b>${Math.round(v)}</b> — ${AQI_LABELS[aqiLevel(v)]}`
+    `<b>${provinces[i].name}</b><br>AQI: <b>${Math.round(v)}</b> - ${AQI_LABELS[aqiLevel(v)]}`
   );
 
   return (
@@ -310,22 +310,38 @@ function SafeWindows({ forecast }) {
   const safe   = forecast.filter(f => f.level <= 1);
   const unsafe = forecast.filter(f => f.level >= 3);
   return (
-    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
-      <div style={{background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:12}}>
-        <div style={{fontWeight:700, color:'#15803d', marginBottom:6, fontSize:'0.82rem'}}>Khung giờ an toàn</div>
-        {safe.length ? safe.map(f=>(
-          <span key={f.horizon} style={{display:'inline-block', margin:'2px 3px', background:'#dcfce7', color:'#15803d', borderRadius:6, padding:'2px 8px', fontSize:'0.78rem', fontWeight:600}}>
-            {f.time_str} ({f.date_str})
-          </span>
-        )) : <span style={{color:'#666', fontSize:'0.8rem'}}>Không có trong 72h tới</span>}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 14 }}>
+        <div style={{ fontWeight: 700, color: '#15803d', marginBottom: 10, fontSize: '0.82rem' }}>Khung giờ an toàn</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {safe.length ? safe.map(f => (
+            <div key={f.horizon} style={{
+              background: '#dcfce7', color: '#15803d',
+              borderRadius: 8, padding: '6px 12px',
+              fontSize: '0.8rem', fontWeight: 600,
+              textAlign: 'center', lineHeight: 1.4,
+            }}>
+              <div>{f.time_str}</div>
+              <div style={{ fontSize: '0.68rem', fontWeight: 400, opacity: 0.8 }}>{f.date_str}</div>
+            </div>
+          )) : <span style={{ color: '#666', fontSize: '0.8rem' }}>Không có trong 72h tới</span>}
+        </div>
       </div>
-      <div style={{background:'#fef2f2', border:'1px solid #fecaca', borderRadius:10, padding:12}}>
-        <div style={{fontWeight:700, color:'#dc2626', marginBottom:6, fontSize:'0.82rem'}}>Khung giờ cần hạn chế</div>
-        {unsafe.length ? unsafe.map(f=>(
-          <span key={f.horizon} style={{display:'inline-block', margin:'2px 3px', background:'#fee2e2', color:'#dc2626', borderRadius:6, padding:'2px 8px', fontSize:'0.78rem', fontWeight:600}}>
-            {f.time_str} ({f.date_str})
-          </span>
-        )) : <span style={{color:'#666', fontSize:'0.8rem'}}>Không có trong 72h tới</span>}
+      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 14 }}>
+        <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: 10, fontSize: '0.82rem' }}>Khung giờ cần hạn chế</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {unsafe.length ? unsafe.map(f => (
+            <div key={f.horizon} style={{
+              background: '#fee2e2', color: '#dc2626',
+              borderRadius: 8, padding: '6px 12px',
+              fontSize: '0.8rem', fontWeight: 600,
+              textAlign: 'center', lineHeight: 1.4,
+            }}>
+              <div>{f.time_str}</div>
+              <div style={{ fontSize: '0.68rem', fontWeight: 400, opacity: 0.8 }}>{f.date_str}</div>
+            </div>
+          )) : <span style={{ color: '#666', fontSize: '0.8rem' }}>Không có trong 72h tới</span>}
+        </div>
       </div>
     </div>
   );
@@ -335,12 +351,12 @@ function SafeWindows({ forecast }) {
 function HealthAdvisory({ recommendation, forecast }) {
   if (!recommendation) return null;
   const HOUR_SLOTS = [
-    {label:'Sáng sớm', range:'5–8h',   icon:'🌅'},
-    {label:'Buổi sáng',range:'8–12h',  icon:'☀️'},
-    {label:'Buổi trưa',range:'12–14h', icon:'🌞'},
-    {label:'Buổi chiều',range:'14–18h',icon:'🌤️'},
-    {label:'Chiều tối',range:'18–21h', icon:'🌆'},
-    {label:'Ban đêm',  range:'21–5h',  icon:'🌙'},
+    {label:'Sáng sớm', range:'5-8h',   icon:'🌅'},
+    {label:'Buổi sáng',range:'8-12h',  icon:'☀️'},
+    {label:'Buổi trưa',range:'12-14h', icon:'🌞'},
+    {label:'Buổi chiều',range:'14-18h',icon:'🌤️'},
+    {label:'Chiều tối',range:'18-21h', icon:'🌆'},
+    {label:'Ban đêm',  range:'21-5h',  icon:'🌙'},
   ];
   const slotLevels = [6,9,12,15,18,22].map(h => {
     const match = forecast?.find(f => Math.abs(new Date(f.datetime).getHours() - h) <= 2);
@@ -372,7 +388,7 @@ function HealthAdvisory({ recommendation, forecast }) {
       </div>
       {recommendation.sensitive?.length > 0 && (
         <div style={{background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, padding:'9px 12px'}}>
-          <div style={{fontWeight:700, color:'#c2410c', fontSize:'0.78rem', marginBottom:5}}>Lưu ý — Nhóm dễ bị ảnh hưởng</div>
+          <div style={{fontWeight:700, color:'#c2410c', fontSize:'0.78rem', marginBottom:5}}>Lưu ý - Nhóm dễ bị ảnh hưởng</div>
           {recommendation.sensitive.map((s,i) => (
             <div key={i} style={{fontSize:'0.76rem', color:'#7c3f00', marginBottom:2, display:'flex', gap:5}}>
               <span style={{flexShrink:0}}>•</span> {s}
@@ -415,14 +431,14 @@ export default function Tab1Forecast({ data }) {
 
       {/* Map full-width */}
       <div style={{background:'#fff', borderRadius:14, padding:14, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
-        <div style={{fontWeight:700, color:'#1e293b', marginBottom:8, fontSize:'0.9rem'}}>Bản đồ AQI — 4 tỉnh Miền Trung</div>
+        <div style={{fontWeight:700, color:'#1e293b', marginBottom:8, fontSize:'0.9rem'}}>Bản đồ AQI - 4 tỉnh Miền Trung</div>
         <ProvinceMapWide activeSlug={slug||'thanh_hoa'} forecastData={data} />
       </div>
 
       {/* Forecast Chart */}
       <div style={{background:'#fff', borderRadius:14, padding:16, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
-        <div style={{fontWeight:700, color:'#1e293b', marginBottom:2}}>Dự báo AQI — 72 giờ tiếp theo</div>
-        <div style={{fontSize:'0.75rem', color:'#94a3b8', marginBottom:10}}>Kết quả từ mô hình PCA + ML tốt nhất. Giai đoạn dữ liệu: 08/2022 – 03/2026.</div>
+        <div style={{fontWeight:700, color:'#1e293b', marginBottom:2}}>Dự báo AQI - 72 giờ tiếp theo</div>
+        <div style={{fontSize:'0.75rem', color:'#94a3b8', marginBottom:10}}>Kết quả từ mô hình PCA + ML tốt nhất. Giai đoạn dữ liệu: 08/2022 - 03/2026.</div>
         <ForecastChart forecast={forecast} />
         <div style={{marginTop:10}}><SafeWindows forecast={forecast} /></div>
       </div>
