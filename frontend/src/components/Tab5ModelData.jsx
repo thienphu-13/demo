@@ -54,17 +54,18 @@ export default function Tab5ModelData({ slug }) {
           Mô hình màu vàng = best model. RMSE thấp hơn = dự báo chính xác hơn.
         </p>
         <Plot
-        data={[{
-          type: 'bar', orientation: 'h',
-          x: sorted.map(m => m.rmse),
-          y: sorted.map(m => (m.is_best ? '⭐ ' : '') + m.name),
-          marker: { color: barColors, line: { color: 'rgba(0,0,0,0.1)', width: 1 } },
-          textposition: 'outside',
-          textfont: { size: 11 },
-        }]}
+          data={[{
+            type: 'bar', orientation: 'h',
+            x: sorted.map(m => m.rmse),
+            y: sorted.map(m => (m.is_best ? '⭐ ' : '') + m.name),
+            marker: { color: barColors, line: { color: 'rgba(0,0,0,0.1)', width: 1 } },
+            text: sorted.map(m => m.rmse.toFixed(3)),
+            textposition: 'outside',
+            textfont: { size: 11 },
+          }]}
           layout={{
             ...L,
-            xaxis: { title: 'RMSE', range: [0, 25], gridcolor: 'rgba(0,0,0,0.06)', zeroline: true },
+            xaxis: { title: 'RMSE (thấp hơn = tốt hơn)', gridcolor: 'rgba(0,0,0,0.06)' },
             yaxis: { tickfont: { size: 11 }, automargin: true },
             height: 530,
             showlegend: false,
@@ -106,34 +107,43 @@ export default function Tab5ModelData({ slug }) {
         </div>
       </div>
 
-      {/* ── So sánh 4 tỉnh ────────────────────────────────────────────────── */}
+      {/* ── Scatter: RMSE vs R² tất cả mô hình ─────────────────────────── */}
       <div style={{ background: '#fff', borderRadius: 12, padding: 18, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-        <h3 style={{ fontWeight: 700, color: '#1e293b', marginBottom: 12, fontSize: '0.95rem' }}>
-          So sánh Best Model — 4 tỉnh
+        <h3 style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.95rem' }}>
+          Phân tích RMSE vs R² — Toàn bộ mô hình
         </h3>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-            <thead>
-              <tr style={{ background: '#f1f5f9' }}>
-                {['Tỉnh', 'Best Model', 'Số PC (PCA 95%)', 'RMSE', 'WLA (%)', 'R²'].map(h => (
-                  <th key={h} style={{ padding: '9px 16px', textAlign: 'center', fontWeight: 700, color: '#475569' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.all_best.map((row, i) => (
-                <tr key={i} style={{ background: row.slug === slug ? '#e3f2fd' : i % 2 === 0 ? '#fff' : '#fafbfc', fontWeight: row.slug === slug ? 700 : 400 }}>
-                  <td style={{ padding: '8px 16px', textAlign: 'center' }}>{row.province}</td>
-                  <td style={{ padding: '8px 16px', textAlign: 'center' }}>{row.model}</td>
-                  <td style={{ padding: '8px 16px', textAlign: 'center' }}>{row.n_pc}</td>
-                  <td style={{ padding: '8px 16px', textAlign: 'center', fontFamily: 'monospace' }}>{row.rmse.toFixed(3)}</td>
-                  <td style={{ padding: '8px 16px', textAlign: 'center', fontFamily: 'monospace' }}>{row.wla.toFixed(1)}</td>
-                  <td style={{ padding: '8px 16px', textAlign: 'center', fontFamily: 'monospace' }}>{row.r2?.toFixed(3) ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 10 }}>
+          Mô hình lý tưởng: RMSE thấp (trái) + R² cao (trên). Màu vàng = best model.
+        </p>
+        <Plot
+          data={[{
+            type: 'scatter', mode: 'markers+text',
+            x: data.models.map(m => m.rmse),
+            y: data.models.map(m => m.r2 ?? 0),
+            text: data.models.map(m => m.name),
+            textposition: data.models.map((m, i) => i % 2 === 0 ? 'top center' : 'bottom center'),
+            textfont: { size: 10, color: data.models.map(m => m.is_best ? '#b45309' : '#64748b') },
+            marker: {
+              size: data.models.map(m => m.is_best ? 18 : 12),
+              color: data.models.map(m => m.is_best ? '#ffd700' : '#90caf9'),
+              line: { color: data.models.map(m => m.is_best ? '#b45309' : '#1565c0'), width: 1.5 },
+              symbol: data.models.map(m => m.is_best ? 'star' : 'circle'),
+            },
+            customdata: data.models.map(m => `<b>${m.name}</b><br>RMSE: ${m.rmse.toFixed(3)}<br>R²: ${m.r2?.toFixed(3) ?? '—'}<br>WLA: ${m.wla.toFixed(1)}%`),
+            hovertemplate: '%{customdata}<extra></extra>',
+          }]}
+          layout={{
+            plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)',
+            font: { family: 'Inter, sans-serif', size: 11 },
+            xaxis: { title: 'RMSE (thấp hơn = tốt hơn)', gridcolor: 'rgba(0,0,0,0.06)', zeroline: false },
+            yaxis: { title: 'R² (cao hơn = tốt hơn)', gridcolor: 'rgba(0,0,0,0.06)', zeroline: false },
+            height: 420,
+            showlegend: false,
+            margin: { l: 60, r: 30, t: 20, b: 60 },
+          }}
+          config={{ displayModeBar: false, responsive: true }}
+          style={{ width: '100%' }}
+        />
       </div>
 
       {/* Info footer */}
