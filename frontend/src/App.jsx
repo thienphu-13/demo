@@ -11,7 +11,7 @@ const TABS = [
   { id: 'classification', label: 'Phân loại & Khuyến nghị' },
   { id: 'history',        label: 'Lịch sử' },
   { id: 'models',         label: 'Dữ liệu & Mô hình' },
-  { id: 'tourism',        label: '🗺️ Du lịch' },
+  { id: 'tourism',        label: 'Du lịch' },
 ];
 
 const LEVEL_BG     = ['#e8f5e9','#fffde7','#fff3e0','#fdecea','#f3e5f5','#fdecea'];
