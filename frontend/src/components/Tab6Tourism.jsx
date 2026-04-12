@@ -218,7 +218,7 @@ export default function Tab6Tourism({ data, slug }) {
       {/* Header */}
       <div style={{ background: `linear-gradient(135deg, ${aqiColor}cc, ${aqiColor}88)`, borderRadius: 14, padding: '18px 22px', color: '#fff' }}>
         <div style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 6 }}>
-          🗺️ Gợi ý Du lịch — {pname}
+           Gợi ý Du lịch - {pname}
         </div>
         <div style={{ fontSize: '0.88rem', opacity: 0.95, lineHeight: 1.6, marginBottom: 10 }}>
           {getRecommendationText(aqi, slug)}
@@ -236,7 +236,7 @@ export default function Tab6Tourism({ data, slug }) {
       {/* Map */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
         <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.92rem' }}>
-          Bản đồ điểm du lịch — Màu theo mức phù hợp AQI
+          Bản đồ điểm du lịch - Màu theo mức phù hợp AQI
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
           {Object.entries(SUIT_CONFIG).map(([k, cfg]) => (
@@ -317,7 +317,7 @@ export default function Tab6Tourism({ data, slug }) {
                 ['🟡 Kém (101–150)',    'limit','limit','ok'],
                 ['🟠 Xấu (151–200)',    'no','indoor_only','ok'],
                 ['🔴 Rất xấu (201–300)','no','no','limit'],
-                ['☠️ Nguy hại (>300)',  'no','no','limit'],
+                [' Nguy hại (>300)',  'no','no','limit'],
               ].map(([label, o, m, i], idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 ? '#fafbfc' : '#fff' }}>
                   <td style={{ padding: '7px 12px', fontWeight: 600, color: '#334155' }}>{label}</td>
