@@ -59,7 +59,7 @@ export default function App() {
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div>
             <h1 style={{ fontSize: 'clamp(1.1rem,2.5vw,1.6rem)', fontWeight: 800 }}>
-              Dự báo Chất lượng Không khí — Miền Trung Việt Nam
+              Dự báo Chất lượng Không khí - Miền Trung Việt Nam
             </h1>
             <p style={{ fontSize: '0.8rem', opacity: 0.82, marginTop: 3 }}>
               Dữ liệu: 08/2022 – 03/2026 &nbsp;|&nbsp; Phương pháp: PCA + Machine Learning
@@ -79,7 +79,7 @@ export default function App() {
           <b style={{ color: LEVEL_BORDER[lvl] }}>
             {forecastData.current.label} ({forecastData.current.aqi})
           </b>
-          {' '}— {forecastData.recommendation?.desc}
+          {' '}- {forecastData.recommendation?.desc}
         </div>
       )}
 
@@ -108,7 +108,7 @@ export default function App() {
         </div>
       </div>
       
-{/* Province selector — chỉ hiện ở tab cần thiết */}
+{/* Province selector - chỉ hiện ở tab cần thiết */}
 {['forecast','history','models'].includes(activeTab) && (
   <div style={{ maxWidth: 1200, margin: '0 auto', padding: '12px 16px 0' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
