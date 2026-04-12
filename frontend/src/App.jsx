@@ -11,12 +11,68 @@ const TABS = [
   { id: 'classification', label: 'Phân loại & Khuyến nghị' },
   { id: 'history',        label: 'Lịch sử' },
   { id: 'models',         label: 'Dữ liệu & Mô hình' },
-  { id: 'tourism',        label: 'Du lịch' },
+  { id: 'tourism',        label: '🗺️ Du lịch' },
 ];
 
 const LEVEL_BG     = ['#e8f5e9','#fffde7','#fff3e0','#fdecea','#f3e5f5','#fdecea'];
 const LEVEL_BORDER = ['#4caf50','#f9a825','#ff9800','#f44336','#9c27b0','#b71c1c'];
 
+// ── Sticky Province Selector - NGOÀI App component ───────────────────────────
+function StickyProvinceSelector({ provinces, activeSlug, setActiveSlug, loading }) {
+  const [open, setOpen] = useState(true);
+  const current = provinces.find(p => p.slug === activeSlug);
+  return (
+    <div style={{
+      position: 'fixed', top: 200, right: 14, zIndex: 998,
+      background: 'rgba(255,255,255,0.97)',
+      borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+      border: '1px solid #e0e7f0', overflow: 'hidden',
+      width: open ? 180 : 'auto',
+      transition: 'width 0.25s ease',
+    }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          padding: '7px 12px', background: '#f8fafd',
+          borderBottom: open ? '1px solid #f1f5f9' : 'none',
+          cursor: 'pointer', userSelect: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 8, whiteSpace: 'nowrap',
+        }}
+      >
+        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          📍 {open ? 'Chọn tỉnh' : (current?.name || '')}
+        </span>
+        <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div style={{ padding: '4px 0' }}>
+          {provinces.map(p => (
+            <div
+              key={p.slug}
+              onClick={() => setActiveSlug(p.slug)}
+              style={{
+                padding: '7px 14px', fontSize: '0.82rem',
+                fontWeight: p.slug === activeSlug ? 700 : 500,
+                color: p.slug === activeSlug ? '#1565c0' : '#334155',
+                background: p.slug === activeSlug ? '#eff6ff' : 'transparent',
+                borderLeft: p.slug === activeSlug ? '3px solid #1565c0' : '3px solid transparent',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (p.slug !== activeSlug) e.currentTarget.style.background = '#f8fafd'; }}
+              onMouseLeave={e => { if (p.slug !== activeSlug) e.currentTarget.style.background = 'transparent'; }}
+            >
+              {p.slug === activeSlug ? '▶ ' : ''}{p.name}
+              {loading && p.slug === activeSlug && ' ⏳'}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [provinces, setProvinces]       = useState([]);
   const [activeSlug, setActiveSlug]     = useState('thanh_hoa');
@@ -50,25 +106,23 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', background: '#f0f4f8' }}>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
+      {/* Header */}
       <header style={{
         background: 'linear-gradient(135deg,#1565c0 0%,#0097a7 100%)',
         color: '#fff', padding: '14px 24px',
         boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <h1 style={{ fontSize: 'clamp(1.1rem,2.5vw,1.6rem)', fontWeight: 800 }}>
-              Dự báo Chất lượng Không khí - Miền Trung Việt Nam
-            </h1>
-            <p style={{ fontSize: '0.8rem', opacity: 0.82, marginTop: 3 }}>
-              Dữ liệu: 08/2022 – 03/2026 &nbsp;|&nbsp; Phương pháp: PCA + Machine Learning
-            </p>
-          </div>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <h1 style={{ fontSize: 'clamp(1.1rem,2.5vw,1.6rem)', fontWeight: 800 }}>
+            Dự báo Chất lượng Không khí - Miền Trung Việt Nam
+          </h1>
+          <p style={{ fontSize: '0.8rem', opacity: 0.82, marginTop: 3 }}>
+            Dữ liệu: 08/2022 – 03/2026 &nbsp;|&nbsp; Phương pháp: PCA + Machine Learning
+          </p>
         </div>
       </header>
 
-      {/* ── Alert Banner ────────────────────────────────────────────────── */}
+      {/* Alert Banner */}
       {forecastData && lvl >= 2 && (
         <div style={{
           background: LEVEL_BG[lvl], borderBottom: `3px solid ${LEVEL_BORDER[lvl]}`,
@@ -76,21 +130,19 @@ export default function App() {
           fontSize: '0.88rem', fontWeight: 600, color: '#222',
         }}>
           AQI tại <b>{forecastData.province}</b> đang ở mức{' '}
-          <b style={{ color: LEVEL_BORDER[lvl] }}>
-            {forecastData.current.label} ({forecastData.current.aqi})
-          </b>
+          <b style={{ color: LEVEL_BORDER[lvl] }}>{forecastData.current.label} ({forecastData.current.aqi})</b>
           {' '}- {forecastData.recommendation?.desc}
         </div>
       )}
 
-      {/* ── Error ───────────────────────────────────────────────────────── */}
+      {/* Error */}
       {error && (
         <div style={{ margin: '12px 24px', padding: '12px 16px', background: '#fdecea', border: '1px solid #f44336', borderRadius: 8, color: '#c62828', fontSize: '0.9rem' }}>
           Lỗi: {error}
         </div>
       )}
 
-      {/* ── Tab Nav ─────────────────────────────────────────────────────── */}
+      {/* Tab Nav */}
       <div style={{ background: '#fff', borderBottom: '1px solid #e0e7f0', overflowX: 'auto' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', padding: '0 16px' }}>
           {TABS.map(tab => (
@@ -107,34 +159,18 @@ export default function App() {
           ))}
         </div>
       </div>
-      
-{/* Province selector - chỉ hiện ở tab cần thiết */}
-{['forecast','history','models'].includes(activeTab) && (
-  <div style={{ maxWidth: 1200, margin: '0 auto', padding: '12px 16px 0' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Chọn tỉnh:</span>
-      <select
-        value={activeSlug}
-        onChange={e => setActiveSlug(e.target.value)}
-        style={{
-          padding: '7px 14px', borderRadius: 8,
-          border: '1px solid #e0e7f0',
-          fontSize: '0.92rem', fontWeight: 600,
-          background: '#fff', color: '#1e293b',
-          cursor: 'pointer', outline: 'none',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-        }}
-      >
-        {provinces.map(p => (
-          <option key={p.slug} value={p.slug}>{p.name}</option>
-        ))}
-      </select>
-      {loading && <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>⏳ Đang tải...</span>}
-    </div>
-  </div>
-)}
-      
-      {/* ── Content ─────────────────────────────────────────────────────── */}
+
+      {/* Sticky Province Selector - ẩn ở tab So sánh 4 tỉnh */}
+      {activeTab !== 'classification' && (
+        <StickyProvinceSelector
+          provinces={provinces}
+          activeSlug={activeSlug}
+          setActiveSlug={setActiveSlug}
+          loading={loading}
+        />
+      )}
+
+      {/* Content */}
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px' }}>
         {loading && !forecastData ? <LoadingSkeleton /> : (
           <>
@@ -148,7 +184,7 @@ export default function App() {
       </main>
 
       <footer style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: '0.78rem', borderTop: '1px solid #e0e7f0', background: '#fff', marginTop: 32 }}>
-        Nguồn dữ liệu: Open-Meteo CAMS Global &nbsp;|&nbsp; &nbsp;|&nbsp; React + FastAPI
+        Nguồn dữ liệu: Open-Meteo CAMS Global &nbsp;|&nbsp; Giai đoạn: 08/2022 – 03/2026 &nbsp;|&nbsp; React + FastAPI
       </footer>
     </div>
   );
