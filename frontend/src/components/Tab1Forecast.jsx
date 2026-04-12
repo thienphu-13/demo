@@ -8,7 +8,7 @@ const L = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font:
 function StickyAQILegend({ currentLevel }) {
   return (
     <div style={{
-      position: 'fixed', top: 80, right: 14, zIndex: 999,
+      position: 'fixed', top: 80, left: 14, zIndex: 999,
       background: 'rgba(255,255,255,0.97)',
       borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
       padding: '10px 12px', width: 142,
@@ -256,58 +256,57 @@ function ForecastChart({ forecast }) {
   );
 }
 
-// ── Safe/Unsafe Windows — gộp thành khung giờ ───────────────────────────────
-function groupRanges(items) {
+// ── Safe/Unsafe Windows — hiển thị khung giờ dạng "Xh – Yh" ────────────────
+function getHour(f) {
+  try { return new Date(f.datetime).getHours(); } catch { return parseInt(f.time_str); }
+}
+
+function mergeToRanges(items) {
   if (!items.length) return [];
   const ranges = [];
-  let start = items[0], prev = items[0];
+  let startH = getHour(items[0]);
+  let endH   = startH + (items[0].horizon <= 6 ? 1 : 2);
+  let prevH  = startH;
   for (let i = 1; i < items.length; i++) {
-    const cur = items[i];
-    if (cur.date_str === prev.date_str && (cur.horizon - prev.horizon) <= 12) {
-      prev = cur;
-    } else {
-      ranges.push({ from: start, to: prev });
-      start = cur; prev = cur;
-    }
+    const h = getHour(items[i]);
+    if (h - prevH <= 6) { endH = h + 1; prevH = h; }
+    else { ranges.push([startH, endH]); startH = h; endH = h + 1; prevH = h; }
   }
-  ranges.push({ from: start, to: prev });
+  ranges.push([startH, endH]);
   return ranges;
 }
 
-function SafeWindows({ forecast }) {
-  const safe        = forecast.filter(f => f.level <= 1);
-  const unsafe      = forecast.filter(f => f.level >= 3);
-  const safeRanges  = groupRanges(safe);
-  const unsafeRanges= groupRanges(unsafe);
+function fmt(h) { return `${h % 24}h`; }
 
-  const RangeTag = ({ r, bg, color }) => {
-    const same = r.from.time_str === r.to.time_str && r.from.date_str === r.to.date_str;
-    return (
-      <div style={{ background: bg, color, borderRadius: 8, padding: '6px 12px', fontSize: '0.8rem', fontWeight: 600, textAlign: 'center', lineHeight: 1.4 }}>
-        <div>{same ? r.from.time_str : `${r.from.time_str} – ${r.to.time_str}`}</div>
-        <div style={{ fontSize: '0.67rem', fontWeight: 400, opacity: 0.8, marginTop: 1 }}>
-          {r.from.date_str === r.to.date_str ? r.from.date_str : `${r.from.date_str} → ${r.to.date_str}`}
-        </div>
-      </div>
-    );
-  };
+function SafeWindows({ forecast }) {
+  const safe   = forecast.filter(f => f.level <= 1);
+  const unsafe = forecast.filter(f => f.level >= 3);
+  const safeR  = mergeToRanges(safe);
+  const unsafeR= mergeToRanges(unsafe);
+
+  const Tag = ({ range, bg, color }) => (
+    <div style={{ background: bg, color, borderRadius: 8, padding: '6px 14px',
+      fontSize: '0.82rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+      {fmt(range[0])} – {fmt(range[1])}
+    </div>
+  );
 
   return (
     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
       <div style={{background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:12}}>
         <div style={{fontWeight:700, color:'#15803d', marginBottom:8, fontSize:'0.82rem'}}>Khung giờ an toàn</div>
-        <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
-          {safeRanges.length
-            ? safeRanges.map((r,i) => <RangeTag key={i} r={r} bg="#dcfce7" color="#15803d" />)
-            : <span style={{color:'#666', fontSize:'0.8rem'}}>Không có trong 72h tới</span>}
+        <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:32, alignItems:'center'}}>
+          {safeR.length
+            ? safeR.map((r,i) => <Tag key={i} range={r} bg="#dcfce7" color="#15803d" />)
+            : <span style={{color:'#94a3b8', fontSize:'0.8rem', fontStyle:'italic'}}>Không có trong 72h tới</span>}
         </div>
       </div>
       <div style={{background:'#fef2f2', border:'1px solid #fecaca', borderRadius:10, padding:12}}>
         <div style={{fontWeight:700, color:'#dc2626', marginBottom:8, fontSize:'0.82rem'}}>Khung giờ cần hạn chế</div>
-        <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
-          {unsafeRanges.length
-            ? unsafeRanges.map((r,i) => <RangeTag key={i} r={r} bg="#fee2e2" color="#dc2626" />)
-            : <span style={{color:'#666', fontSize:'0.8rem'}}>Không có trong 72h tới</span>}
+        <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:32, alignItems:'center'}}>
+          {unsafeR.length
+            ? unsafeR.map((r,i) => <Tag key={i} range={r} bg="#fee2e2" color="#dc2626" />)
+            : <span style={{color:'#94a3b8', fontSize:'0.8rem', fontStyle:'italic'}}>Không có trong 72h tới</span>}
         </div>
       </div>
     </div>
@@ -318,37 +317,62 @@ function SafeWindows({ forecast }) {
 function HealthAdvisory({ recommendation, forecast }) {
   if (!recommendation) return null;
   const HOUR_SLOTS = [
-    {label:'Sáng sớm', range:'5–8h',   icon:'🌅'},
-    {label:'Buổi sáng',range:'8–12h',  icon:'☀️'},
-    {label:'Buổi trưa',range:'12–14h', icon:'🌞'},
-    {label:'Buổi chiều',range:'14–18h',icon:'🌤️'},
-    {label:'Chiều tối',range:'18–21h', icon:'🌆'},
-    {label:'Ban đêm',  range:'21–5h',  icon:'🌙'},
+    {label:'Sáng sớm',  range:'5–8h',   icon:'🌅', midH: 6  },
+    {label:'Buổi sáng', range:'8–12h',  icon:'☀️', midH: 9  },
+    {label:'Buổi trưa', range:'12–14h', icon:'🌞', midH: 12 },
+    {label:'Buổi chiều',range:'14–18h', icon:'🌤️', midH: 15 },
+    {label:'Chiều tối', range:'18–21h', icon:'🌆', midH: 18 },
+    {label:'Ban đêm',   range:'21–5h',  icon:'🌙', midH: 22 },
   ];
-  const slotLevels = [6,9,12,15,18,22].map(h => {
-    const match = forecast?.find(f => Math.abs(new Date(f.datetime).getHours() - h) <= 2);
-    return match?.level ?? 1;
+
+  // Tìm forecast point gần nhất với từng slot
+  const slotData = HOUR_SLOTS.map(slot => {
+    const match = forecast?.reduce((best, f) => {
+      try {
+        const fh   = new Date(f.datetime).getHours();
+        const diff = Math.abs(fh - slot.midH);
+        const bh   = best ? Math.abs(new Date(best.datetime).getHours() - slot.midH) : 999;
+        return diff < bh ? f : best;
+      } catch { return best; }
+    }, null);
+    return { level: match?.level ?? 1, aqi: match ? Math.round(match.aqi) : null, label: match?.label ?? '' };
   });
+
   const SLOT_BG = ['#f0fdf4','#fffde7','#fff7ed','#fef2f2','#f5f3ff','#f8fafc'];
   const SLOT_TC = ['#15803d','#a16207','#c2410c','#dc2626','#7c3aed','#475569'];
   const statusText = ['An toàn','Chấp nhận','Hạn chế','Tránh ra ngoài','Nguy hiểm','Khẩn cấp'];
+
   return (
     <div style={{background:'#fff', borderRadius:14, padding:16, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
       <div style={{fontWeight:700, color:'#1e293b', marginBottom:3, fontSize:'0.92rem'}}>Khuyến nghị hoạt động theo khung giờ</div>
-      <div style={{fontSize:'0.75rem', color:'#94a3b8', marginBottom:12}}>Dựa trên mức AQI dự báo và tiêu chuẩn WHO/QCVN 05:2023</div>
+      <div style={{fontSize:'0.75rem', color:'#94a3b8', marginBottom:12}}>Dựa trên AQI dự báo và tiêu chuẩn WHO/QCVN 05:2023</div>
       <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:12}}>
-        {HOUR_SLOTS.map((slot,i) => {
-          const lvl = slotLevels[i];
+        {HOUR_SLOTS.map((slot, i) => {
+          const { level: lvl, aqi, label } = slotData[i];
+          const bg = SLOT_BG[Math.min(lvl,5)];
+          const tc = SLOT_TC[Math.min(lvl,5)];
           return (
-            <div key={i} style={{background:SLOT_BG[Math.min(lvl,5)], borderRadius:8, padding:'8px 10px'}}>
-              <div style={{display:'flex', alignItems:'center', gap:5, marginBottom:3}}>
-                <span style={{fontSize:'1rem'}}>{slot.icon}</span>
+            <div key={i} style={{background:bg, borderRadius:10, padding:'10px 12px',
+              borderLeft:`3px solid ${tc}`}}>
+              {/* Header: icon + tên + giờ */}
+              <div style={{display:'flex', alignItems:'center', gap:5, marginBottom:6}}>
+                <span style={{fontSize:'1.1rem'}}>{slot.icon}</span>
                 <div>
-                  <div style={{fontSize:'0.72rem', fontWeight:700, color:'#334155'}}>{slot.label}</div>
-                  <div style={{fontSize:'0.6rem', color:'#94a3b8'}}>{slot.range}</div>
+                  <div style={{fontSize:'0.75rem', fontWeight:700, color:'#334155'}}>{slot.label}</div>
+                  <div style={{fontSize:'0.62rem', color:'#94a3b8'}}>{slot.range}</div>
                 </div>
               </div>
-              <div style={{fontSize:'0.76rem', fontWeight:700, color:SLOT_TC[Math.min(lvl,5)]}}>{statusText[lvl]||'Chấp nhận'}</div>
+              {/* AQI dự báo */}
+              {aqi != null && (
+                <div style={{display:'flex', alignItems:'baseline', gap:4, marginBottom:4}}>
+                  <span style={{fontSize:'1.1rem', fontWeight:900, color:tc}}>{aqi}</span>
+                  <span style={{fontSize:'0.65rem', color:'#94a3b8'}}>AQI · {label}</span>
+                </div>
+              )}
+              {/* Trạng thái */}
+              <div style={{fontSize:'0.76rem', fontWeight:700, color:tc}}>
+                {statusText[Math.min(lvl,5)]}
+              </div>
             </div>
           );
         })}
