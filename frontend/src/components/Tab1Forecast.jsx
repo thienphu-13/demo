@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import { AQI_BINS, AQI_LABELS, AQI_COLORS, AQI_RGBA, AQI_TEXT_COLORS, aqiLevel, aqiColor } from '../constants.js';
 
@@ -6,81 +6,37 @@ const L = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font:
 
 // ── Sticky AQI Legend (position:fixed top-right) ──────────────────────────────
 function StickyAQILegend({ currentLevel }) {
-  const [open, setOpen] = useState(true);
-  const rows = [
-    { label: 'Tốt',       range: '0 - 49',   desc: 'Không ảnh hưởng sức khỏe.' },
-    { label: 'Trung bình',range: '50 - 99',  desc: 'Ảnh hưởng người rất nhạy cảm.' },
-    { label: 'Kém',       range: '100 - 149',desc: 'Có hại cho nhóm dễ bị ảnh hưởng.' },
-    { label: 'Xấu',       range: '150 - 199',desc: 'Ảnh hưởng sức khỏe toàn dân.' },
-    { label: 'Rất xấu',   range: '200 - 299',desc: 'Khẩn cấp với nhóm dễ bị ảnh hưởng.' },
-    { label: 'Nguy hại',  range: '300 - 499',desc: 'Tình trạng khẩn cấp môi trường.' },
-  ];
   return (
     <div style={{
-      position: 'fixed', top: 75, right: 14, zIndex: 999,
+      position: 'fixed', top: 80, right: 14, zIndex: 999,
       background: 'rgba(255,255,255,0.97)',
-      borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-      border: '1px solid #e0e7f0', overflow: 'hidden',
-      width: open ? 340 : 'auto',
-      transition: 'width 0.25s ease',
+      borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+      padding: '10px 12px', width: 142,
+      border: '1px solid #e0e7f0',
     }}>
-      {/* Header - click để toggle */}
-      <div
-        onClick={() => setOpen(o => !o)}
-        style={{
-          fontSize: '0.65rem', fontWeight: 800, color: '#475569',
-          textTransform: 'uppercase', letterSpacing: '0.06em',
-          padding: '7px 12px',
-          borderBottom: open ? '1px solid #f1f5f9' : 'none',
-          background: '#f8fafd',
-          cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          userSelect: 'none',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Dot màu mức hiện tại */}
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: AQI_COLORS[currentLevel], display: 'inline-block' }} />
-          Thang AQI
-        </span>
-        <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: 10 }}>
-          {open ? '▲ Thu gọn' : '▼ Mở rộng'}
-        </span>
+      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+        Thang AQI
       </div>
-
-      {/* Table - chỉ hiện khi open */}
-      {open && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem' }}>
-          <thead>
-            <tr style={{ background: '#f1f5f9' }}>
-              {['Mức', 'AQI', 'Ý nghĩa'].map(h => (
-                <th key={h} style={{ padding: '5px 10px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.65rem' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => {
-              const isActive = i === currentLevel;
-              return (
-                <tr key={i} style={{
-                  background: isActive ? `${AQI_COLORS[i]}18` : 'transparent',
-                  borderLeft: isActive ? `3px solid ${AQI_COLORS[i]}` : '3px solid transparent',
-                }}>
-                  <td style={{ padding: '4px 10px', whiteSpace: 'nowrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <div style={{ width: 9, height: 9, borderRadius: '50%', background: AQI_COLORS[i], flexShrink: 0 }} />
-                      <span style={{ fontWeight: isActive ? 800 : 500, color: isActive ? AQI_COLORS[i] : '#334155' }}>{row.label}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: '4px 10px', color: '#64748b', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '0.68rem' }}>{row.range}</td>
-                  <td style={{ padding: '4px 10px', color: isActive ? '#334155' : '#64748b', fontWeight: isActive ? 600 : 400 }}>{row.desc}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
+      {AQI_LABELS.map((label, i) => {
+        const isActive = i === currentLevel;
+        return (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '3px 6px', borderRadius: 6, marginBottom: 2,
+            background: isActive ? `${AQI_COLORS[i]}22` : 'transparent',
+            border: isActive ? `1.5px solid ${AQI_COLORS[i]}` : '1.5px solid transparent',
+            transition: 'all 0.2s',
+          }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: AQI_COLORS[i], flexShrink: 0 }} />
+            <div style={{ fontSize: '0.68rem', fontWeight: isActive ? 800 : 500, color: isActive ? AQI_COLORS[i] : '#64748b' }}>
+              {label}
+            </div>
+            {isActive && (
+              <div style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, color: AQI_COLORS[i] }}>◀</div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -129,7 +85,7 @@ function PollutantGrid({ pollutants }) {
   return (
     <div>
       <div style={{ fontWeight: 700, color: '#475569', fontSize: '0.78rem', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        Chỉ số ô nhiễm - So sánh ngưỡng WHO & QCVN 05:2023
+        Chỉ số ô nhiễm — So sánh ngưỡng WHO & QCVN 05:2023
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
         {keys.map(key => {
@@ -171,7 +127,7 @@ function WeatherRow({ weather }) {
         <div key={key} style={{ background: '#f0f9ff', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
           <div style={{ fontSize: '1.1rem', marginBottom: 2 }}>{icon}</div>
           <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0369a1' }}>
-            {weather[key] != null ? weather[key].toFixed(1) : '-'}
+            {weather[key] != null ? weather[key].toFixed(1) : '—'}
             <span style={{ fontSize: '0.6rem', fontWeight: 400, color: '#64748b' }}> {unit}</span>
           </div>
           <div style={{ fontSize: '0.63rem', color: '#64748b', marginTop: 1 }}>{label}</div>
@@ -208,7 +164,7 @@ function GaugeChart({ aqi, label, color }) {
   );
 }
 
-// ── Province Map - scattermapbox với OpenStreetMap thật ───────────────────────
+// ── Province Map — scattermapbox với OpenStreetMap thật ───────────────────────
 function ProvinceMapWide({ activeSlug, forecastData }) {
   const aqi = forecastData?.current?.aqi ?? 0;
   const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
@@ -222,7 +178,7 @@ function ProvinceMapWide({ activeSlug, forecastData }) {
   const colors  = aqiVals.map(v => aqiColor(v));
   const sizes   = provinces.map(p => p.slug === activeSlug ? 38 : 28);
   const customdata = aqiVals.map((v, i) =>
-    `<b>${provinces[i].name}</b><br>AQI: <b>${Math.round(v)}</b> - ${AQI_LABELS[aqiLevel(v)]}`
+    `<b>${provinces[i].name}</b><br>AQI: <b>${Math.round(v)}</b> — ${AQI_LABELS[aqiLevel(v)]}`
   );
 
   return (
@@ -248,18 +204,13 @@ function ProvinceMapWide({ activeSlug, forecastData }) {
           style: 'open-street-map',
           center: { lat: 18.0, lon: 105.8 },
           zoom: 5.8,
-          uirevision: 'true',
-      },
+        },
         paper_bgcolor: 'rgba(0,0,0,0)',
         margin: { l: 0, r: 0, t: 0, b: 0 },
         height: 360,
         showlegend: false,
       }}
-      config={{ displayModeBar: true, responsive: true, scrollZoom: true,
-        modeBarButtonsToRemove: ['pan2d','select2d','lasso2d','resetScale2d','toImage','autoScale2d'],
-        modeBarButtonsToAdd: [],
-        displaylogo: false,
-      }}
+      config={{ displayModeBar: false, responsive: true, scrollZoom: false }}
       style={{ width: '100%', borderRadius: 10, overflow: 'hidden' }}
     />
   );
@@ -305,42 +256,58 @@ function ForecastChart({ forecast }) {
   );
 }
 
-// ── Safe/Unsafe Windows ───────────────────────────────────────────────────────
+// ── Safe/Unsafe Windows — gộp thành khung giờ ───────────────────────────────
+function groupRanges(items) {
+  if (!items.length) return [];
+  const ranges = [];
+  let start = items[0], prev = items[0];
+  for (let i = 1; i < items.length; i++) {
+    const cur = items[i];
+    if (cur.date_str === prev.date_str && (cur.horizon - prev.horizon) <= 12) {
+      prev = cur;
+    } else {
+      ranges.push({ from: start, to: prev });
+      start = cur; prev = cur;
+    }
+  }
+  ranges.push({ from: start, to: prev });
+  return ranges;
+}
+
 function SafeWindows({ forecast }) {
-  const safe   = forecast.filter(f => f.level <= 1);
-  const unsafe = forecast.filter(f => f.level >= 3);
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 14 }}>
-        <div style={{ fontWeight: 700, color: '#15803d', marginBottom: 10, fontSize: '0.82rem' }}>Khung giờ an toàn</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {safe.length ? safe.map(f => (
-            <div key={f.horizon} style={{
-              background: '#dcfce7', color: '#15803d',
-              borderRadius: 8, padding: '6px 12px',
-              fontSize: '0.8rem', fontWeight: 600,
-              textAlign: 'center', lineHeight: 1.4,
-            }}>
-              <div>{f.time_str}</div>
-              <div style={{ fontSize: '0.68rem', fontWeight: 400, opacity: 0.8 }}>{f.date_str}</div>
-            </div>
-          )) : <span style={{ color: '#666', fontSize: '0.8rem' }}>Không có trong 72h tới</span>}
+  const safe        = forecast.filter(f => f.level <= 1);
+  const unsafe      = forecast.filter(f => f.level >= 3);
+  const safeRanges  = groupRanges(safe);
+  const unsafeRanges= groupRanges(unsafe);
+
+  const RangeTag = ({ r, bg, color }) => {
+    const same = r.from.time_str === r.to.time_str && r.from.date_str === r.to.date_str;
+    return (
+      <div style={{ background: bg, color, borderRadius: 8, padding: '6px 12px', fontSize: '0.8rem', fontWeight: 600, textAlign: 'center', lineHeight: 1.4 }}>
+        <div>{same ? r.from.time_str : `${r.from.time_str} – ${r.to.time_str}`}</div>
+        <div style={{ fontSize: '0.67rem', fontWeight: 400, opacity: 0.8, marginTop: 1 }}>
+          {r.from.date_str === r.to.date_str ? r.from.date_str : `${r.from.date_str} → ${r.to.date_str}`}
         </div>
       </div>
-      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 14 }}>
-        <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: 10, fontSize: '0.82rem' }}>Khung giờ cần hạn chế</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {unsafe.length ? unsafe.map(f => (
-            <div key={f.horizon} style={{
-              background: '#fee2e2', color: '#dc2626',
-              borderRadius: 8, padding: '6px 12px',
-              fontSize: '0.8rem', fontWeight: 600,
-              textAlign: 'center', lineHeight: 1.4,
-            }}>
-              <div>{f.time_str}</div>
-              <div style={{ fontSize: '0.68rem', fontWeight: 400, opacity: 0.8 }}>{f.date_str}</div>
-            </div>
-          )) : <span style={{ color: '#666', fontSize: '0.8rem' }}>Không có trong 72h tới</span>}
+    );
+  };
+
+  return (
+    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
+      <div style={{background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:12}}>
+        <div style={{fontWeight:700, color:'#15803d', marginBottom:8, fontSize:'0.82rem'}}>Khung giờ an toàn</div>
+        <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
+          {safeRanges.length
+            ? safeRanges.map((r,i) => <RangeTag key={i} r={r} bg="#dcfce7" color="#15803d" />)
+            : <span style={{color:'#666', fontSize:'0.8rem'}}>Không có trong 72h tới</span>}
+        </div>
+      </div>
+      <div style={{background:'#fef2f2', border:'1px solid #fecaca', borderRadius:10, padding:12}}>
+        <div style={{fontWeight:700, color:'#dc2626', marginBottom:8, fontSize:'0.82rem'}}>Khung giờ cần hạn chế</div>
+        <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
+          {unsafeRanges.length
+            ? unsafeRanges.map((r,i) => <RangeTag key={i} r={r} bg="#fee2e2" color="#dc2626" />)
+            : <span style={{color:'#666', fontSize:'0.8rem'}}>Không có trong 72h tới</span>}
         </div>
       </div>
     </div>
@@ -351,12 +318,12 @@ function SafeWindows({ forecast }) {
 function HealthAdvisory({ recommendation, forecast }) {
   if (!recommendation) return null;
   const HOUR_SLOTS = [
-    {label:'Sáng sớm', range:'5-8h',   icon:'🌅'},
-    {label:'Buổi sáng',range:'8-12h',  icon:'☀️'},
-    {label:'Buổi trưa',range:'12-14h', icon:'🌞'},
-    {label:'Buổi chiều',range:'14-18h',icon:'🌤️'},
-    {label:'Chiều tối',range:'18-21h', icon:'🌆'},
-    {label:'Ban đêm',  range:'21-5h',  icon:'🌙'},
+    {label:'Sáng sớm', range:'5–8h',   icon:'🌅'},
+    {label:'Buổi sáng',range:'8–12h',  icon:'☀️'},
+    {label:'Buổi trưa',range:'12–14h', icon:'🌞'},
+    {label:'Buổi chiều',range:'14–18h',icon:'🌤️'},
+    {label:'Chiều tối',range:'18–21h', icon:'🌆'},
+    {label:'Ban đêm',  range:'21–5h',  icon:'🌙'},
   ];
   const slotLevels = [6,9,12,15,18,22].map(h => {
     const match = forecast?.find(f => Math.abs(new Date(f.datetime).getHours() - h) <= 2);
@@ -388,7 +355,7 @@ function HealthAdvisory({ recommendation, forecast }) {
       </div>
       {recommendation.sensitive?.length > 0 && (
         <div style={{background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, padding:'9px 12px'}}>
-          <div style={{fontWeight:700, color:'#c2410c', fontSize:'0.78rem', marginBottom:5}}>Lưu ý - Nhóm dễ bị ảnh hưởng</div>
+          <div style={{fontWeight:700, color:'#c2410c', fontSize:'0.78rem', marginBottom:5}}>Lưu ý — Nhóm dễ bị ảnh hưởng</div>
           {recommendation.sensitive.map((s,i) => (
             <div key={i} style={{fontSize:'0.76rem', color:'#7c3f00', marginBottom:2, display:'flex', gap:5}}>
               <span style={{flexShrink:0}}>•</span> {s}
@@ -431,14 +398,14 @@ export default function Tab1Forecast({ data }) {
 
       {/* Map full-width */}
       <div style={{background:'#fff', borderRadius:14, padding:14, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
-        <div style={{fontWeight:700, color:'#1e293b', marginBottom:8, fontSize:'0.9rem'}}>Bản đồ AQI - 4 tỉnh Miền Trung</div>
+        <div style={{fontWeight:700, color:'#1e293b', marginBottom:8, fontSize:'0.9rem'}}>Bản đồ AQI — 4 tỉnh Miền Trung</div>
         <ProvinceMapWide activeSlug={slug||'thanh_hoa'} forecastData={data} />
       </div>
 
       {/* Forecast Chart */}
       <div style={{background:'#fff', borderRadius:14, padding:16, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
-        <div style={{fontWeight:700, color:'#1e293b', marginBottom:2}}>Dự báo AQI - 72 giờ tiếp theo</div>
-        <div style={{fontSize:'0.75rem', color:'#94a3b8', marginBottom:10}}>Kết quả từ mô hình PCA + ML tốt nhất. Giai đoạn dữ liệu: 08/2022 - 03/2026.</div>
+        <div style={{fontWeight:700, color:'#1e293b', marginBottom:2}}>Dự báo AQI — 72 giờ tiếp theo</div>
+        <div style={{fontSize:'0.75rem', color:'#94a3b8', marginBottom:10}}>Kết quả từ mô hình PCA + ML tốt nhất. Giai đoạn dữ liệu: 08/2022 – 03/2026.</div>
         <ForecastChart forecast={forecast} />
         <div style={{marginTop:10}}><SafeWindows forecast={forecast} /></div>
       </div>
