@@ -216,9 +216,12 @@ export default function Tab6Tourism({ data, slug }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* Header */}
-      <div style={{ background: `linear-gradient(135deg, ${aqiColor}cc, ${aqiColor}88)`, borderRadius: 14, padding: '18px 22px', color: '#fff' }}>
+      <div style={{ borderRadius: 14, padding: '18px 22px', color: '#fff',
+        background: ['#1a7a2e','#6b6b00','#b85c00','#b82222','#6b1a91','#7a0a1a'][lvl] || '#1565c0',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+      }}>
         <div style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 6 }}>
-           Gợi ý Du lịch - {pname}
+          🗺️ Gợi ý Du lịch — {pname}
         </div>
         <div style={{ fontSize: '0.88rem', opacity: 0.95, lineHeight: 1.6, marginBottom: 10 }}>
           {getRecommendationText(aqi, slug)}
@@ -227,7 +230,7 @@ export default function Tab6Tourism({ data, slug }) {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {Object.entries(suitCounts).filter(([,v]) => v > 0).map(([k, v]) => (
             <div key={k} style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 8, padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600 }}>
-              {SUIT_CONFIG[k].dot} {SUIT_CONFIG[k].label}: {v} điểm
+              {SUIT_CONFIG[k].label}: {v} điểm
             </div>
           ))}
         </div>
@@ -236,7 +239,7 @@ export default function Tab6Tourism({ data, slug }) {
       {/* Map */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
         <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.92rem' }}>
-          Bản đồ điểm du lịch - Màu theo mức phù hợp AQI
+          Bản đồ điểm du lịch — Màu theo mức phù hợp AQI
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
           {Object.entries(SUIT_CONFIG).map(([k, cfg]) => (
@@ -264,7 +267,7 @@ export default function Tab6Tourism({ data, slug }) {
           <div>
             <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: 5, fontWeight: 600 }}>LOẠI HÌNH</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[['all','Tất cả'],['beach','🏖️ Biển'],['trekking','🌄 Trekking'],['nature','🌿 Thiên nhiên'],['heritage','🏛️ Di tích'],['food','🍜 Ẩm thực']].map(([v,l]) => (
+              {[['all','Tất cả'],['beach','Biển'],['trekking','Trekking'],['nature','Thiên nhiên'],['heritage','Di tích'],['food','Ẩm thực']].map(([v,l]) => (
                 <button key={v} onClick={() => setFilterCat(v)} style={btnStyle(filterCat===v)}>{l}</button>
               ))}
             </div>
@@ -317,7 +320,7 @@ export default function Tab6Tourism({ data, slug }) {
                 ['🟡 Kém (101–150)',    'limit','limit','ok'],
                 ['🟠 Xấu (151–200)',    'no','indoor_only','ok'],
                 ['🔴 Rất xấu (201–300)','no','no','limit'],
-                [' Nguy hại (>300)',  'no','no','limit'],
+                ['☠️ Nguy hại (>300)',  'no','no','limit'],
               ].map(([label, o, m, i], idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 ? '#fafbfc' : '#fff' }}>
                   <td style={{ padding: '7px 12px', fontWeight: 600, color: '#334155' }}>{label}</td>
