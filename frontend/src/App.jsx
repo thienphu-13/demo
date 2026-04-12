@@ -4,12 +4,14 @@ import Tab1Forecast from './components/Tab1Forecast.jsx';
 import Tab2Classification from './components/Tab2Classification.jsx';
 import Tab3History from './components/Tab3History.jsx';
 import Tab5ModelData from './components/Tab5ModelData.jsx';
+import Tab6Tourism from './components/Tab6Tourism.jsx';
 
 const TABS = [
   { id: 'forecast',       label: 'Dự báo' },
   { id: 'classification', label: 'Phân loại & Khuyến nghị' },
   { id: 'history',        label: 'Lịch sử' },
   { id: 'models',         label: 'Dữ liệu & Mô hình' },
+  { id: 'tourism',        label: 'Du lịch' },
 ];
 
 const LEVEL_BG     = ['#e8f5e9','#fffde7','#fff3e0','#fdecea','#f3e5f5','#fdecea'];
@@ -140,6 +142,7 @@ export default function App() {
             {activeTab === 'classification' && <Tab2Classification data={forecastData} />}
             {activeTab === 'history'        && <Tab3History slug={activeSlug} />}
             {activeTab === 'models'         && <Tab5ModelData slug={activeSlug} />}
+            {activeTab === 'tourism'        && <Tab6Tourism data={forecastData} slug={activeSlug} />}
           </>
         )}
       </main>
