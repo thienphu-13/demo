@@ -18,7 +18,7 @@ function StickyAQILegend({ currentLevel }) {
   const [open, setOpen] = React.useState(true);
   return (
     <div style={{
-      position: 'fixed', top: 80, left: 14, zIndex: 999,
+      position: 'fixed', top: 390, right: 14, zIndex: 999,
       background: 'rgba(255,255,255,0.97)',
       borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
       border: '1px solid #e0e7f0', overflow: 'hidden',
