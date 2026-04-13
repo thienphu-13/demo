@@ -59,13 +59,14 @@ function HistoryLineChart({ records }) {
           nticks: 12,
           automargin: true,
         },
-        yaxis: { title: 'US AQI', gridcolor: 'rgba(0,0,0,0.06)', rangemode: 'tozero' },
+        yaxis: { title: 'US AQI', gridcolor: 'rgba(0,0,0,0.06)',    
+        range: [0, Math.max(...aqiVals, 50) * 1.3] },
         ...(hasPm25 ? { yaxis2: { title: 'PM2.5 (µg/m³)', overlaying: 'y', side: 'right', showgrid: false } } : {}),
-        shapes, annotations: threshAnnotations,
+        shapes,
         height: 480,
         hovermode: 'x unified',
         legend: { orientation: 'h', x: 0, y: 1.06, font: { size: 11 } },
-        margin: { l: 50, r: 80, t: 50, b: 60 },
+        margin: { l: 50, r: 55, t: 50, b: 60 },
       }}
       config={{ displayModeBar: false, responsive: true }}
       style={{ width: '100%' }}
