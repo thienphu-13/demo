@@ -171,7 +171,7 @@ export default function App() {
       )}
 
       {/* Content */}
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px' }}>
+      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px', marginRight: '410px' }}>
         {loading && !forecastData ? <LoadingSkeleton /> : (
           <>
             {activeTab === 'forecast'       && <Tab1Forecast data={forecastData} loading={loading} />}
