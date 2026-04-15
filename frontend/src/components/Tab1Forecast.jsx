@@ -4,14 +4,14 @@ import { AQI_BINS, AQI_LABELS, AQI_COLORS, AQI_RGBA, AQI_TEXT_COLORS, aqiLevel, 
 
 const L = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font: { family: 'Inter, sans-serif', size: 12 } };
 
-// ── Sticky AQI Legend — table format, collapsible ────────────────────────────
+// ── Sticky AQI Legend - table format, collapsible ────────────────────────────
 const AQI_TABLE_DATA = [
   { range: '0 – 49',   desc: 'Không ảnh hưởng tới sức khỏe.' },
   { range: '50 – 99',  desc: 'Một số chất ô nhiễm ảnh hưởng người rất nhạy cảm.' },
   { range: '100 – 149',desc: 'Có thể gây hại cho nhóm dễ bị ảnh hưởng.' },
   { range: '150 – 199',desc: 'Ảnh hưởng sức khỏe toàn dân.' },
   { range: '200 – 299',desc: 'Khẩn cấp với nhóm dễ bị ảnh hưởng.' },
-  { range: '300 – 499',desc: 'Nguy hại — tình trạng khẩn cấp về môi trường.' },
+  { range: '300 – 499',desc: 'Nguy hại - tình trạng khẩn cấp về môi trường.' },
 ];
 
 function StickyAQILegend({ currentLevel }) {
@@ -115,7 +115,7 @@ function PollutantGrid({ pollutants }) {
   return (
     <div>
       <div style={{ fontWeight: 700, color: '#475569', fontSize: '0.78rem', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        Chỉ số ô nhiễm — So sánh ngưỡng WHO & QCVN 05:2023
+        Chỉ số ô nhiễm - So sánh ngưỡng WHO & QCVN 05:2023
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
         {keys.map(key => {
@@ -157,7 +157,7 @@ function WeatherRow({ weather }) {
         <div key={key} style={{ background: '#f0f9ff', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
           <div style={{ fontSize: '1.1rem', marginBottom: 2 }}>{icon}</div>
           <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0369a1' }}>
-            {weather[key] != null ? weather[key].toFixed(1) : '—'}
+            {weather[key] != null ? weather[key].toFixed(1) : '-'}
             <span style={{ fontSize: '0.6rem', fontWeight: 400, color: '#64748b' }}> {unit}</span>
           </div>
           <div style={{ fontSize: '0.63rem', color: '#64748b', marginTop: 1 }}>{label}</div>
@@ -194,7 +194,7 @@ function GaugeChart({ aqi, label, color }) {
   );
 }
 
-// ── Province Map — scattermapbox với OpenStreetMap thật ───────────────────────
+// ── Province Map - scattermapbox với OpenStreetMap thật ───────────────────────
 function ProvinceMapWide({ activeSlug, forecastData }) {
   const aqi = forecastData?.current?.aqi ?? 0;
   const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
@@ -208,7 +208,7 @@ function ProvinceMapWide({ activeSlug, forecastData }) {
   const colors  = aqiVals.map(v => aqiColor(v));
   const sizes   = provinces.map(p => p.slug === activeSlug ? 38 : 28);
   const customdata = aqiVals.map((v, i) =>
-    `<b>${provinces[i].name}</b><br>AQI: <b>${Math.round(v)}</b> — ${AQI_LABELS[aqiLevel(v)]}`
+    `<b>${provinces[i].name}</b><br>AQI: <b>${Math.round(v)}</b> - ${AQI_LABELS[aqiLevel(v)]}`
   );
 
   return (
@@ -286,7 +286,7 @@ function ForecastChart({ forecast }) {
   );
 }
 
-// ── Safe/Unsafe Windows — hiển thị khung giờ dạng "Xh – Yh" ────────────────
+// ── Safe/Unsafe Windows - hiển thị khung giờ dạng "Xh – Yh" ────────────────
 function getHour(f) {
   try { return new Date(f.datetime).getHours(); } catch { return parseInt(f.time_str); }
 }
@@ -409,7 +409,7 @@ function HealthAdvisory({ recommendation, forecast }) {
       </div>
       {recommendation.sensitive?.length > 0 && (
         <div style={{background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, padding:'9px 12px'}}>
-          <div style={{fontWeight:700, color:'#c2410c', fontSize:'0.78rem', marginBottom:5}}>Lưu ý — Nhóm dễ bị ảnh hưởng</div>
+          <div style={{fontWeight:700, color:'#c2410c', fontSize:'0.78rem', marginBottom:5}}>Lưu ý - Nhóm dễ bị ảnh hưởng</div>
           {recommendation.sensitive.map((s,i) => (
             <div key={i} style={{fontSize:'0.76rem', color:'#7c3f00', marginBottom:2, display:'flex', gap:5}}>
               <span style={{flexShrink:0}}>•</span> {s}
@@ -452,13 +452,13 @@ export default function Tab1Forecast({ data }) {
 
       {/* Map full-width */}
       <div style={{background:'#fff', borderRadius:14, padding:14, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
-        <div style={{fontWeight:700, color:'#1e293b', marginBottom:8, fontSize:'0.9rem'}}>Bản đồ AQI — 4 tỉnh Miền Trung</div>
+        <div style={{fontWeight:700, color:'#1e293b', marginBottom:8, fontSize:'0.9rem'}}>Bản đồ AQI - 4 tỉnh Miền Trung</div>
         <ProvinceMapWide activeSlug={slug||'thanh_hoa'} forecastData={data} />
       </div>
 
       {/* Forecast Chart */}
       <div style={{background:'#fff', borderRadius:14, padding:16, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
-        <div style={{fontWeight:700, color:'#1e293b', marginBottom:2}}>Dự báo AQI — 72 giờ tiếp theo</div>
+        <div style={{fontWeight:700, color:'#1e293b', marginBottom:2}}>Dự báo AQI - 72 giờ tiếp theo</div>
         <div style={{fontSize:'0.75rem', color:'#94a3b8', marginBottom:10}}>Kết quả từ mô hình PCA + ML tốt nhất. Giai đoạn dữ liệu: 08/2022 – 03/2026.</div>
         <ForecastChart forecast={forecast} />
         <div style={{marginTop:10}}><SafeWindows forecast={forecast} /></div>
