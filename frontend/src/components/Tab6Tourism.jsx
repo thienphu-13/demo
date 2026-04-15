@@ -221,7 +221,7 @@ export default function Tab6Tourism({ data, slug }) {
         boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
       }}>
         <div style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 6 }}>
-          🗺️ Gợi ý Du lịch — {pname}
+          🗺️ Gợi ý Du lịch - {pname}
         </div>
         <div style={{ fontSize: '0.88rem', opacity: 0.95, lineHeight: 1.6, marginBottom: 10 }}>
           {getRecommendationText(aqi, slug)}
@@ -239,7 +239,7 @@ export default function Tab6Tourism({ data, slug }) {
       {/* Map */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
         <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.92rem' }}>
-          Bản đồ điểm du lịch — Màu theo mức phù hợp AQI
+          Bản đồ điểm du lịch - Màu theo mức phù hợp AQI
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
           {Object.entries(SUIT_CONFIG).map(([k, cfg]) => (
