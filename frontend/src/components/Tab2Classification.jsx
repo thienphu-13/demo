@@ -170,12 +170,23 @@ function PollutantCompareTable({ allData }) {
 export default function Tab2Classification({ data: activeData }) {
   const [allData, setAllData] = useState([null, null, null, null]);
   const [loading, setLoading] = useState(true);
+  
+useEffect(() => {
+  setLoading(true);
+  
+  const fetchSequential = async () => {
+    const results = [];
+    for (const p of PROVINCES) {
+      const d = await api.getForecast(p.slug).catch(() => null);
+      results.push(d);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    setAllData(results);
+    setLoading(false);
+  };
 
-  useEffect(() => {
-    setLoading(true);
-    Promise.all(PROVINCES.map(p => api.getForecast(p.slug).catch(() => null)))
-      .then(results => { setAllData(results); setLoading(false); });
-  }, []);
+  fetchSequential();
+}, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
