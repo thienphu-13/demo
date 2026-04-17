@@ -1,5 +1,5 @@
 """
-main.py — FastAPI backend cho AQI Forecast App.
+main.py - FastAPI backend cho AQI Forecast App.
 - Cache RAM 2h + stale fallback 24h khi bị 429
 - Pre-warm cache 4 tỉnh lúc startup (tuần tự, cách 5s)
 """
@@ -138,16 +138,11 @@ def _build_forecast_result(slug: str) -> dict:
 
 
 # ── Startup ───────────────────────────────────────────────────────────────────
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 1. Sync Drive
-    if os.environ.get("GCP_SA_JSON") and os.environ.get("DRIVE_FOLDER_ID"):
-        print("⏳ Auto-syncing model artifacts from Drive...")
-        ok, msg, n = sync_from_drive(force=False)
-        print(f"  → {msg} ({n} files)")
-
-    # 2. Pre-warm cache — tuần tự, cách 5s tránh 429
-    print("⏳ Pre-warming cache cho 4 tỉnh...")
+async def _background_prewarm():
+    """Pre-warm cache sau khi server đã sẵn sàng - không block startup."""
+    import asyncio
+    await asyncio.sleep(5)  # Chờ server up hoàn toàn
+    print("⏳ Pre-warming cache cho 4 tỉnh (background)...")
     for name, prov in PROVINCES.items():
         slug      = prov["slug"]
         cache_key = f"forecast:{slug}"
@@ -157,17 +152,29 @@ async def lifespan(app: FastAPI):
         try:
             result = _build_forecast_result(slug)
             _cache_set(cache_key, result)
-            print(f"  ✓ {name} — AQI {result['current']['aqi']}")
-            time.sleep(5)
+            print(f"  ✓ {name} - AQI {result['current']['aqi']}")
+            await asyncio.sleep(8)  # Chờ 8s giữa các tỉnh
         except Exception as e:
             print(f"  ✗ {name}: {e}")
-            time.sleep(2)
-    print("✅ Cache warm-up xong!")
+            await asyncio.sleep(3)
+    print("✅ Pre-warm xong!")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    import asyncio
+    # Sync Drive trước
+    if os.environ.get("GCP_SA_JSON") and os.environ.get("DRIVE_FOLDER_ID"):
+        print("⏳ Auto-syncing model artifacts from Drive...")
+        ok, msg, n = sync_from_drive(force=False)
+        print(f"  → {msg} ({n} files)")
+
+    # Pre-warm chạy nền, không block
+    asyncio.create_task(_background_prewarm())
     yield
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI(title="AQI Forecast API — Miền Trung VN", version="2.1.0", lifespan=lifespan)
+app = FastAPI(title="AQI Forecast API - Miền Trung VN", version="2.1.0", lifespan=lifespan)
 
 ALLOWED_ORIGINS = os.environ.get(
     "ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000"
