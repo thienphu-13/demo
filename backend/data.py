@@ -1,7 +1,9 @@
 """
 data.py — Fetch dữ liệu từ Open-Meteo API + feature engineering.
+Có retry tự động khi gặp 429 Too Many Requests.
 """
 from __future__ import annotations
+import time
 import warnings
 from datetime import date, timedelta, datetime, timezone
 
@@ -25,6 +27,33 @@ def vn_now() -> datetime:
 
 def vn_today() -> date:
     return vn_now().date()
+
+
+# ── Retry wrapper cho requests.get ───────────────────────────────────────────
+def _get_with_retry(url: str, params: dict, timeout: int = 30, max_retries: int = 4) -> requests.Response:
+    """Gọi GET với exponential backoff khi gặp 429."""
+    wait_times = [10, 20, 40, 60]  # seconds
+    for attempt in range(max_retries):
+        try:
+            resp = requests.get(url, params=params, timeout=timeout)
+            if resp.status_code == 429:
+                wait = wait_times[min(attempt, len(wait_times) - 1)]
+                print(f"[429] Open-Meteo rate limit — chờ {wait}s (lần {attempt + 1}/{max_retries})")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            return resp
+        except requests.exceptions.Timeout:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(5)
+        except requests.exceptions.HTTPError as e:
+            if resp.status_code == 429:
+                if attempt == max_retries - 1:
+                    raise RuntimeError(f"Open-Meteo rate limit sau {max_retries} lần thử: {e}")
+                continue
+            raise
+    raise RuntimeError(f"Không thể kết nối Open-Meteo sau {max_retries} lần thử")
 
 
 # ── Fetch Open-Meteo ──────────────────────────────────────────────────────────
@@ -51,10 +80,8 @@ def fetch_openmeteo(
     }
 
     try:
-        ra = requests.get(aq_url, params=aq_params, timeout=30)
-        ra.raise_for_status()
-        rw = requests.get(wt_url, params=wt_params, timeout=30)
-        rw.raise_for_status()
+        ra = _get_with_retry(aq_url, params=aq_params)
+        rw = _get_with_retry(wt_url, params=wt_params)
     except Exception as e:
         raise RuntimeError(f"Lỗi kết nối Open-Meteo: {e}")
 
@@ -80,12 +107,10 @@ def impute_df(df: pd.DataFrame) -> pd.DataFrame:
                    "sulphur_dioxide", "carbon_monoxide"]
     impute_cols = [c for c in impute_cols if c in df.columns]
 
-    # clip outliers
     for col, (lo, hi) in PHYSICAL_BOUNDS.items():
         if col in df.columns:
             df.loc[(df[col] < lo) | (df[col] > hi), col] = np.nan
 
-    # interpolate
     for col in impute_cols:
         limit = 3 if col == TARGET else 6
         df[col] = df[col].interpolate(method="linear", limit=limit, limit_direction="both")
@@ -101,7 +126,6 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """Tạo lag, rolling, cyclical và interaction features."""
     df = df.sort_values("time").reset_index(drop=True).copy()
 
-    # Lag features
     for h in [1, 3, 6, 12, 24]:
         df[f"aqi_lag_{h}h"]  = df[TARGET].shift(h)
         df[f"pm25_lag_{h}h"] = df["pm2_5"].shift(h)
@@ -110,7 +134,6 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         df[f"humid_lag_{h}h"] = df["relative_humidity_2m"].shift(h)
         df[f"wind_lag_{h}h"]  = df["wind_speed_10m"].shift(h)
 
-    # Rolling stats
     for w in [3, 6, 12, 24]:
         df[f"aqi_rmean_{w}h"] = df[TARGET].rolling(w, min_periods=1).mean()
         df[f"aqi_rmax_{w}h"]  = df[TARGET].rolling(w, min_periods=1).max()
@@ -121,12 +144,10 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         df[f"wind_rmean_{w}h"]  = df["wind_speed_10m"].rolling(w, min_periods=1).mean()
         df[f"humid_rmean_{w}h"] = df["relative_humidity_2m"].rolling(w, min_periods=1).mean()
 
-    # Diff features
     df["aqi_diff_1h"]  = df[TARGET].diff(1).fillna(0)
     df["aqi_diff_3h"]  = df[TARGET].diff(3).fillna(0)
     df["aqi_diff_24h"] = df[TARGET].diff(24).fillna(0)
 
-    # Cyclical time features
     h_s = df["time"].dt.hour
     m_s = df["time"].dt.month
     dw  = df["time"].dt.dayofweek
@@ -142,19 +163,16 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df["day"]         = df["time"].dt.day
     df["year"]        = df["time"].dt.year
 
-    # Season
     season_map = {3:"Mùa khô",4:"Mùa khô",5:"Mùa khô",6:"Mùa khô",
                   7:"Mùa khô",8:"Mùa khô",9:"Mùa mưa",10:"Mùa mưa",
                   11:"Mùa mưa",12:"Mùa mưa",1:"Mùa mưa",2:"Mùa mưa"}
-    df["season"]       = m_s.map(season_map)
+    df["season"]        = m_s.map(season_map)
     df["is_dry_season"] = df["season"].map({"Mùa khô": 1, "Mùa mưa": 0}).astype(int)
 
-    # Interaction features
     df["pm25_pm10_ratio"] = df["pm2_5"] / (df["pm10"] + 1e-6)
     df["humid_x_pm25"]    = df["relative_humidity_2m"] * df["pm2_5"]
     df["temp_x_wind"]     = df["temperature_2m"] * df["wind_speed_10m"]
 
-    # Target shifts (for training only — ignored at inference)
     for h_t in HORIZONS:
         df[f"target_t{h_t}h"] = df[TARGET].shift(-h_t)
 
