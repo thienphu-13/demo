@@ -17,7 +17,7 @@ const TABS = [
 const LEVEL_BG     = ['#e8f5e9','#fffde7','#fff3e0','#fdecea','#f3e5f5','#fdecea'];
 const LEVEL_BORDER = ['#4caf50','#f9a825','#ff9800','#f44336','#9c27b0','#b71c1c'];
 
-// ── Sticky Province Selector - NGOÀI App component ───────────────────────────
+// ── Sticky Province Selector ──────────────────────────────────────────────────
 function StickyProvinceSelector({ provinces, activeSlug, setActiveSlug, loading }) {
   const [open, setOpen] = useState(true);
   const current = provinces.find(p => p.slug === activeSlug);
@@ -80,6 +80,12 @@ export default function App() {
   const [forecastData, setForecastData] = useState(null);
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState(null);
+  const [sidebarOpen, setSidebarOpen]   = useState(true);
+
+  // Responsive: tính margin phải thực tế
+  // Sidebar width=180px + gap 14px + padding 14px ≈ 210px
+  const hasSelector = activeTab !== 'classification';
+  const mainMarginRight = hasSelector && sidebarOpen ? 210 : 0;
 
   useEffect(() => {
     api.getProvinces().then(setProvinces).catch(() =>
@@ -160,7 +166,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Sticky Province Selector - ẩn ở tab So sánh 4 tỉnh */}
+      {/* Sticky Province Selector */}
       {activeTab !== 'classification' && (
         <StickyProvinceSelector
           provinces={provinces}
@@ -170,8 +176,16 @@ export default function App() {
         />
       )}
 
-      {/* Content */}
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px', marginRight: '410px' }}>
+      {/* Content - responsive margin */}
+      <main style={{
+        maxWidth: 1200,
+        margin: '0 auto',
+        padding: '20px 16px',
+        // Chỉ thêm margin phải khi màn đủ rộng để hiện sidebar
+        paddingRight: hasSelector ? 'clamp(16px, calc(210px + 16px), 226px)' : '16px',
+        boxSizing: 'border-box',
+        width: '100%',
+      }}>
         {loading && !forecastData ? <LoadingSkeleton /> : (
           <>
             {activeTab === 'forecast'       && <Tab1Forecast data={forecastData} loading={loading} />}
