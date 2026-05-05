@@ -230,18 +230,45 @@ const CAT_ICONS = { beach: '🏖', trekking: '🌄', nature: '🌿', heritage: '
 const CAT_COLORS = { beach: '#0ea5e9', trekking: '#16a34a', nature: '#22c55e', heritage: '#a855f7', food: '#f97316' };
 
 // ── Interactive Layer Map ─────────────────────────────────────────────────────
+// Tile config dùng chung - tên tiếng Việt trên toàn bộ map
+// Nguồn: CartoDB Voyager (có tên VN), OpenTopoMap (có tên VN), Esri Satellite + label overlay
+const TILE_BASES = {
+  osm: {
+    label: 'Bản đồ',
+    // CartoDB Voyager: render tên theo ngôn ngữ địa phương → tiếng Việt trong lãnh thổ VN
+    base: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attr: '© OpenStreetMap © CARTO',
+    labelUrl: null,
+  },
+  topo: {
+    label: 'Địa hình',
+    // OpenTopoMap đã có tên tiếng Việt trong vùng VN
+    base: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attr: '© OpenStreetMap © OpenTopoMap',
+    labelUrl: null,
+  },
+  sat: {
+    label: 'Vệ tinh',
+    base: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attr: '© Esri',
+    // Overlay CartoDB labels (trong suốt) lên ảnh vệ tinh → có tên đường/địa danh tiếng Việt
+    labelUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
+    labelAttr: '© CARTO labels',
+    labelOpacity: 0.8,
+  },
+};
+
 function InteractiveLayerMap({ activeSlug, forecastData }) {
   const divRef  = useRef(null);
-  const stRef   = useRef({ map: null, tile: null, aqiGroup: null, tourGroup: null });
+  const stRef   = useRef({ map: null, baseTile: null, labelTile: null, aqiGroup: null });
   const wrapRef = useRef(null);
-  const [layers,   setLayers]   = useState({ aqi: true, tourism: false });
-  const [basemap,  setBasemap]  = useState('osm');
-  const [isFS,     setIsFS]     = useState(false);
-  const [popup,    setPopup]    = useState(null);
-  const [ready,    setReady]    = useState(false);
+  const [basemap, setBasemap] = useState('osm');
+  const [isFS,    setIsFS]    = useState(false);
+  const [popup,   setPopup]   = useState(null);
+  const [ready,   setReady]   = useState(false);
 
-  const aqi      = forecastData?.current?.aqi ?? 0;
-  const mockAQI  = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
+  const aqi     = forecastData?.current?.aqi ?? 0;
+  const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
   const PROVINCES = [
     { slug: 'thanh_hoa', name: 'Thanh Hóa', lat: 19.808, lon: 105.776 },
     { slug: 'nghe_an',   name: 'Nghệ An',   lat: 18.679, lon: 105.682 },
@@ -249,13 +276,6 @@ function InteractiveLayerMap({ activeSlug, forecastData }) {
     { slug: 'hue',       name: 'Huế',        lat: 16.462, lon: 107.595 },
   ];
 
-  const BASES = {
-    osm:  { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',       label: 'Bản đồ',  attr: '© OpenStreetMap' },
-    topo: { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',         label: 'Địa hình', attr: '© OpenTopoMap'  },
-    sat:  { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Vệ tinh', attr: '© Esri'         },
-  };
-
-  // Khởi tạo Leaflet
   useEffect(() => {
     if (!divRef.current) return;
     if (!document.getElementById('lf-css')) {
@@ -277,26 +297,24 @@ function InteractiveLayerMap({ activeSlug, forecastData }) {
     const L = window.L;
     const map = L.map(divRef.current, { center: [18.0, 106.0], zoom: 7, zoomControl: false });
     L.control.zoom({ position: 'topright' }).addTo(map);
-    stRef.current.map = map;
-    stRef.current.tile = L.tileLayer(BASES.osm.url, { attribution: BASES.osm.attr }).addTo(map);
-    stRef.current.aqiGroup  = L.layerGroup().addTo(map);
-    stRef.current.tourGroup = L.layerGroup();
+    stRef.current.map      = map;
+    stRef.current.baseTile = L.tileLayer(TILE_BASES.osm.base, { attribution: TILE_BASES.osm.attr }).addTo(map);
+    stRef.current.aqiGroup = L.layerGroup().addTo(map);
     setReady(true);
   }
 
-  // Vẽ markers AQI
+  // Vẽ AQI markers
   useEffect(() => {
     if (!ready) return;
     const L = window.L; const st = stRef.current;
     st.aqiGroup.clearLayers();
-    if (!layers.aqi) return;
     PROVINCES.forEach(p => {
       const val   = p.slug === activeSlug ? aqi : mockAQI[p.slug];
       const lvl   = aqiLevel(val);
       const color = AQI_COLORS[lvl];
       const tc    = AQI_TEXT_COLORS[lvl];
       const size  = p.slug === activeSlug ? 44 : 36;
-      const icon = L.divIcon({
+      const icon  = L.divIcon({
         className: '',
         html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:${p.slug===activeSlug?13:11}px;font-weight:800;color:${tc};font-family:Inter,sans-serif;">${Math.round(val)}</div>`,
         iconSize: [size, size], iconAnchor: [size/2, size/2],
@@ -305,46 +323,29 @@ function InteractiveLayerMap({ activeSlug, forecastData }) {
         .addTo(st.aqiGroup)
         .on('click', () => setPopup({ title: p.name, body: `AQI: ${Math.round(val)} · ${AQI_LABELS[lvl]}`, color }));
     });
-  }, [ready, layers.aqi, aqi, activeSlug]);
+  }, [ready, aqi, activeSlug]);
 
-  // Vẽ markers du lịch
+  // Đổi basemap + label overlay
   useEffect(() => {
     if (!ready) return;
     const L = window.L; const st = stRef.current;
-    st.tourGroup.clearLayers();
-    if (!layers.tourism) { st.tourGroup.remove(); return; }
-    st.tourGroup.addTo(st.map);
-    Object.entries(TOURISM_SPOTS).forEach(([slug, spots]) => {
-      spots.forEach(s => {
-        const color = CAT_COLORS[s.cat] || '#64748b';
-        const icon = L.divIcon({
-          className: '',
-          html: `<div style="width:22px;height:22px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;font-size:10px;">${CAT_ICONS[s.cat]||'●'}</div>`,
-          iconSize: [22, 22], iconAnchor: [11, 11],
-        });
-        L.marker([s.lat, s.lon], { icon })
-          .addTo(st.tourGroup)
-          .on('click', () => setPopup({ title: s.name, body: `${CAT_ICONS[s.cat]} ${s.cat} · ${slug.replace('_',' ')}`, color }));
-      });
-    });
-  }, [ready, layers.tourism]);
-
-  // Đổi basemap
-  useEffect(() => {
-    if (!ready) return;
-    const L = window.L; const st = stRef.current;
-    if (st.tile) st.tile.remove();
-    st.tile = L.tileLayer(BASES[basemap].url, { attribution: BASES[basemap].attr }).addTo(st.map);
-    st.map.getPane('tilePane').style.zIndex = 200;
-    // Đưa các layer markers lên trên tile
-    if (st.aqiGroup)  st.aqiGroup.bringToFront?.();
-    if (st.tourGroup) st.tourGroup.bringToFront?.();
+    if (st.baseTile)  { st.baseTile.remove();  st.baseTile  = null; }
+    if (st.labelTile) { st.labelTile.remove(); st.labelTile = null; }
+    const b = TILE_BASES[basemap];
+    st.baseTile = L.tileLayer(b.base, { attribution: b.attr }).addTo(st.map);
+    if (b.labelUrl) {
+      st.labelTile = L.tileLayer(b.labelUrl, {
+        attribution: b.labelAttr, opacity: b.labelOpacity,
+      }).addTo(st.map);
+    }
+    // Đưa AQI markers lên trên
+    st.aqiGroup.eachLayer(l => l.setZIndexOffset?.(1000));
   }, [basemap, ready]);
 
   function toggleFS() {
     const el = wrapRef.current; if (!el) return;
-    if (!isFS) { (el.requestFullscreen || el.webkitRequestFullscreen || (()=>{})).call(el); }
-    else       { (document.exitFullscreen || document.webkitExitFullscreen || (()=>{})).call(document); }
+    if (!isFS) { (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); }
+    else       { (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document); }
     setIsFS(f => !f);
     setTimeout(() => stRef.current.map?.invalidateSize(), 350);
   }
@@ -357,21 +358,8 @@ function InteractiveLayerMap({ activeSlug, forecastData }) {
     <div ref={wrapRef} style={{ background: isFS ? '#fff' : 'transparent', padding: isFS ? 12 : 0 }}>
       {/* Controls */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Lớp:</span>
-        {[
-          { key: 'aqi',     label: 'AQI' },
-          { key: 'tourism', label: 'Du lịch' },
-        ].map(({ key, label }) => (
-          <button key={key} onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))} style={{
-            padding: '4px 12px', borderRadius: 20, fontSize: '0.74rem', cursor: 'pointer',
-            border: `2px solid ${layers[key] ? '#1565c0' : '#e0e7f0'}`,
-            background: layers[key] ? '#1565c0' : '#fff',
-            color: layers[key] ? '#fff' : '#64748b', fontWeight: 600,
-          }}>{label}{layers[key] ? ' ✓' : ''}</button>
-        ))}
-
-        <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: 8 }}>Nền:</span>
-        {Object.entries(BASES).map(([k, b]) => (
+        <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>NỀN:</span>
+        {Object.entries(TILE_BASES).map(([k, b]) => (
           <button key={k} onClick={() => setBasemap(k)} style={{
             padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', cursor: 'pointer',
             border: `1.5px solid ${basemap === k ? '#1565c0' : '#e0e7f0'}`,
@@ -379,33 +367,20 @@ function InteractiveLayerMap({ activeSlug, forecastData }) {
             color: basemap === k ? '#1565c0' : '#64748b', fontWeight: basemap === k ? 700 : 400,
           }}>{b.label}</button>
         ))}
-
-        <button onClick={toggleFS} title={isFS ? 'Thu nhỏ' : 'Toàn màn hình'} style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', cursor: 'pointer', border: '1.5px solid #e0e7f0', background: '#fff', color: '#64748b' }}>
-          {isFS ? '⊠ Thu nhỏ' : '⊞ Toàn màn hình'}
+        <button onClick={toggleFS} style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', cursor: 'pointer', border: '1.5px solid #e0e7f0', background: '#fff', color: '#64748b' }}>
+          {isFS ? 'Thu nhỏ' : 'Toàn màn hình'}
         </button>
       </div>
 
-      {/* Legend */}
-      {layers.aqi && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6, fontSize: '0.67rem' }}>
-          {AQI_LABELS.map((lbl, i) => (
-            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: AQI_COLORS[i], display: 'inline-block', border: '1px solid rgba(0,0,0,.1)' }} />
-              <span style={{ color: '#64748b' }}>{lbl}</span>
-            </span>
-          ))}
-        </div>
-      )}
-      {layers.tourism && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6, fontSize: '0.67rem' }}>
-          {Object.entries(CAT_COLORS).map(([cat, color]) => (
-            <span key={cat} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: color, display: 'inline-block' }} />
-              <span style={{ color: '#64748b' }}>{CAT_ICONS[cat]} {cat}</span>
-            </span>
-          ))}
-        </div>
-      )}
+      {/* AQI Legend */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6, fontSize: '0.67rem' }}>
+        {AQI_LABELS.map((lbl, i) => (
+          <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: AQI_COLORS[i], display: 'inline-block', border: '1px solid rgba(0,0,0,.1)' }} />
+            <span style={{ color: '#64748b' }}>{lbl}</span>
+          </span>
+        ))}
+      </div>
 
       {/* Map */}
       <div ref={divRef} style={{ width: '100%', height: isFS ? 'calc(100vh - 140px)' : 380, borderRadius: 10, border: '1px solid #e0e7f0' }} />
@@ -414,9 +389,7 @@ function InteractiveLayerMap({ activeSlug, forecastData }) {
       {popup && (
         <div style={{ marginTop: 8, padding: '8px 14px', borderRadius: 8, background: '#fff', border: `1.5px solid ${popup.color}44`, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: popup.color, flexShrink: 0 }} />
-          <div style={{ flex: 1, fontSize: '0.8rem', color: '#334155' }}>
-            <b>{popup.title}</b> - {popup.body}
-          </div>
+          <div style={{ flex: 1, fontSize: '0.8rem', color: '#334155' }}><b>{popup.title}</b> - {popup.body}</div>
           <button onClick={() => setPopup(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 14 }}>✕</button>
         </div>
       )}
@@ -426,7 +399,7 @@ function InteractiveLayerMap({ activeSlug, forecastData }) {
         <div style={{ width: 7, height: 7, borderRadius: '50%', background: aqiClr, flexShrink: 0 }} />
         <span style={{ fontSize: '0.75rem', color: '#334155' }}>
           Tỉnh đang chọn: <b style={{ color: aqiClr }}>{AQI_LABELS[aqiLvl]} (AQI {Math.round(aqi)})</b>.
-          Bật layer <b>Du lịch</b> để xem các điểm tham quan trong vùng.
+          Xem gợi ý du lịch phù hợp tại tab <b>Du lịch</b>.
         </span>
       </div>
     </div>
@@ -628,7 +601,7 @@ export default function Tab1Forecast({ data }) {
       <div style={{background:'#fff', borderRadius:14, padding:16, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, flexWrap:'wrap', gap:8}}>
           <div>
-            <div style={{fontWeight:700, color:'#1e293b', fontSize:'0.95rem'}}>🗺️ Bản đồ Tương tác - Miền Trung</div>
+            <div style={{fontWeight:700, color:'#1e293b', fontSize:'0.95rem'}}>🗺️ Bản đồ Chỉ số AQI - Các tỉnh Miền Trung</div>
             <div style={{fontSize:'0.74rem', color:'#94a3b8', marginTop:2}}>Bật/tắt các lớp: AQI · Du lịch · Địa hình. Scroll để zoom, kéo để di chuyển.</div>
           </div>
         </div>
