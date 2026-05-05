@@ -210,60 +210,80 @@ function AQISliderPanel({ sliderAqi, setSliderAqi }) {
 function TourMap({ spots, filterAqi, slug }) {
   const divRef   = useRef(null);
   const stRef    = useRef({ map: null, markers: [], route: null, tile: null, userMk: null });
-  const [selected, setSelected] = useState(null);
-  const [routing,  setRouting]  = useState(false);
-  const [routeInfo,setRouteInfo]= useState(null);
-  const [userPos,  setUserPos]  = useState(null);
-  const [basemap,  setBasemap]  = useState('osm');
-  const [ready,    setReady]    = useState(false);
+  const [selected,  setSelected]  = useState(null);
+  const [routing,   setRouting]   = useState(false);
+  const [routeInfo, setRouteInfo] = useState(null);   // { km, time, name, mode, fromGPS, steps[] }
+  const [userPos,   setUserPos]   = useState(null);
+  const [basemap,   setBasemap]   = useState('osm');
+  const [ready,     setReady]     = useState(false);
+  const [mode,      setMode]      = useState('car');  // car | bike | foot | flight
+  const [showSteps, setShowSteps] = useState(true);
 
   const BASES = {
-    osm:  { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '© OpenStreetMap',  label: 'Bản đồ' },
-    topo: { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',   attr: '© OpenTopoMap',    label: 'Địa hình' },
+    osm:  { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '© OpenStreetMap', label: 'Bản đồ'   },
+    topo: { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',   attr: '© OpenTopoMap',   label: 'Địa hình' },
     sat:  { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr: '© Esri', label: 'Vệ tinh' },
   };
+
+  const MODES = {
+    car:    { label: 'Ô tô',    color: '#1565c0', profile: 'routed-car',  lineColor: '#1565c0' },
+    bike:   { label: 'Xe máy', color: '#15803d', profile: 'routed-bike', lineColor: '#15803d' },
+    foot:   { label: 'Đi bộ',  color: '#b45309', profile: 'routed-foot', lineColor: '#b45309' },
+    flight: { label: 'Bay',     color: '#6b21a8', profile: null,          lineColor: '#6b21a8' },
+  };
+
+  // Biểu tượng hướng rẽ từ OSRM maneuver type/modifier
+  const TURN_ICON = {
+    'turn-left': '↰', 'turn-right': '↱', 'turn-slight left': '↖', 'turn-slight right': '↗',
+    'turn-sharp left': '⟲', 'turn-sharp right': '⟳',
+    'continue': '↑', 'straight': '↑', 'depart': '▶', 'arrive': '★',
+    'roundabout': '⟳', 'rotary': '⟳', 'fork-left': '↖', 'fork-right': '↗',
+    'merge': '⇒', 'ramp': '↗', 'notification': 'ℹ',
+  };
+  function getTurnIcon(step) {
+    const m = step.maneuver;
+    const key = m.modifier ? `${m.type}-${m.modifier}` : m.type;
+    return TURN_ICON[key] || TURN_ICON[m.type] || '↑';
+  }
+  function fmtDist(m) { return m >= 1000 ? `${(m/1000).toFixed(1)} km` : `${Math.round(m)} m`; }
+  function fmtDur(s)  { if (s < 60) return `${Math.round(s)}s`; if (s < 3600) return `${Math.round(s/60)} phút`; return `${Math.floor(s/3600)}h ${Math.round((s%3600)/60)}p`; }
 
   useEffect(() => {
     if (!divRef.current) return;
     if (!document.getElementById('lf-css')) {
-      const l = document.createElement('link');
-      l.id = 'lf-css'; l.rel = 'stylesheet';
-      l.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(l);
+      const l = document.createElement('link'); l.id='lf-css'; l.rel='stylesheet';
+      l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(l);
     }
     if (window.L) { initMap(); return; }
     const s = document.createElement('script');
-    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    s.onload = initMap;
+    s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; s.onload=initMap;
     document.head.appendChild(s);
-    return () => { if (stRef.current.map) { stRef.current.map.remove(); stRef.current.map = null; } };
+    return () => { if (stRef.current.map) { stRef.current.map.remove(); stRef.current.map=null; } };
   }, []);
 
   function initMap() {
     if (stRef.current.map || !divRef.current) return;
     const L = window.L;
     const center = PROV_CENTER[slug] || [17.5, 106.5];
-    const map = L.map(divRef.current, { center, zoom: slug === 'hue' ? 10 : 9, zoomControl: false });
+    const map = L.map(divRef.current, { center, zoom: slug==='hue'?10:9, zoomControl: false });
     L.control.zoom({ position: 'topright' }).addTo(map);
-    stRef.current.map = map;
+    stRef.current.map  = map;
     stRef.current.tile = L.tileLayer(BASES.osm.url, { attribution: BASES.osm.attr }).addTo(map);
     setReady(true);
   }
 
-  // Redraw markers when spots or filterAqi changes
   useEffect(() => {
     if (!ready || !stRef.current.map) return;
     const L = window.L; const st = stRef.current;
     st.markers.forEach(m => m.remove()); st.markers = [];
     spots.forEach(spot => {
-      const suit = getSuit(filterAqi, spot.type);
-      const c    = SUIT_CFG[suit];
+      const c = SUIT_CFG[getSuit(filterAqi, spot.type)];
       const icon = L.divIcon({
         className: '',
-        html: `<div style="width:30px;height:30px;border-radius:50%;background:${CAT_COLOR[spot.cat]||'#64748b'};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:13px;outline:3px solid ${c.color};">${{ beach:'⬡', trekking:'▲', nature:'◉', heritage:'■', food:'●' }[spot.cat]||'●'}</div>`,
-        iconSize: [30, 30], iconAnchor: [15, 15],
+        html: `<div style="width:30px;height:30px;border-radius:50%;background:${CAT_COLOR[spot.cat]||'#64748b'};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:13px;outline:3px solid ${c.color};">${{beach:'⬡',trekking:'▲',nature:'◉',heritage:'■',food:'●'}[spot.cat]||'●'}</div>`,
+        iconSize: [30,30], iconAnchor: [15,15],
       });
-      st.markers.push(L.marker([spot.lat, spot.lon], { icon }).addTo(st.map).on('click', () => setSelected(spot)));
+      st.markers.push(L.marker([spot.lat,spot.lon],{icon}).addTo(st.map).on('click',()=>setSelected(spot)));
     });
   }, [spots, filterAqi, ready]);
 
@@ -274,108 +294,242 @@ function TourMap({ spots, filterAqi, slug }) {
     st.tile = L.tileLayer(BASES[basemap].url, { attribution: BASES[basemap].attr }).addTo(st.map);
   }, [basemap, ready]);
 
+  // ── Waypoints QL1A giữ route trong VN ──────────────────────────────────────
+  function buildVNWaypoints(fromLat, destLat) {
+    const QL1A = [
+      [21.028,105.852],[20.411,106.338],[19.808,105.776],[18.679,105.682],
+      [18.343,105.906],[17.467,106.622],[16.462,107.595],[16.054,108.202],
+      [15.120,108.800],[13.783,109.214],[12.667,109.100],[11.340,108.100],[10.823,106.630],
+    ];
+    const mn = Math.min(fromLat,destLat), mx = Math.max(fromLat,destLat);
+    return QL1A
+      .filter(([lat]) => lat > mn-0.5 && lat < mx+0.5)
+      .filter(([lat]) => Math.abs(lat-fromLat)>0.3 && Math.abs(lat-destLat)>0.3)
+      .sort((a,b) => fromLat>destLat ? b[0]-a[0] : a[0]-b[0]);
+  }
+
+  // ── Route chính ─────────────────────────────────────────────────────────────
   async function doRoute(dest) {
     const st = stRef.current; if (!st.map) return;
-    if (st.route) { st.route.remove(); st.route = null; }
+    if (st.route) { st.route.remove(); st.route=null; }
     setRouteInfo(null); setRouting(true);
-    const from = userPos || PROV_CENTER[slug] || [17.5, 106.5];
+    const from = userPos || PROV_CENTER[slug] || [17.5,106.5];
+    const mc   = MODES[mode];
+
+    // Máy bay: vẽ đường thẳng + tính khoảng cách theo haversine
+    if (mode === 'flight') {
+      const L = window.L;
+      const R = 6371;
+      const dLat = (dest.lat-from[0])*Math.PI/180;
+      const dLon = (dest.lon-from[1])*Math.PI/180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(from[0]*Math.PI/180)*Math.cos(dest.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+      const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const flightMin = Math.round(distKm / 800 * 60 + 60); // ~800 km/h + 60p overhead
+      st.route = L.polyline([[from[0],from[1]],[dest.lat,dest.lon]], {
+        color: mc.lineColor, weight: 3, opacity: 0.7, dashArray: '8 6',
+      }).addTo(st.map);
+      st.map.fitBounds(L.latLngBounds([[from[0],from[1]],[dest.lat,dest.lon]]).pad(0.2));
+      setRouteInfo({
+        km: distKm.toFixed(0), time: `~${flightMin} phút`, name: dest.name,
+        mode, fromGPS: !!userPos,
+        steps: [
+          { icon:'▶', text:`Khởi hành từ ${userPos?'vị trí của bạn':'trung tâm tỉnh'}`, dist:'', dur:'' },
+          { icon:'✈', text:'Bay thẳng đến điểm đích', dist:`${distKm.toFixed(0)} km đường chim bay`, dur:`~${flightMin} phút (gồm ra/vào sân bay)` },
+          { icon:'★', text:`Đến ${dest.name}`, dist:'', dur:'' },
+        ],
+      });
+      setRouting(false); return;
+    }
+
+    // Ô tô / xe máy / đi bộ - OSRM FOSSGIS
+    const waypoints = (mode==='car') ? buildVNWaypoints(from[0], dest.lat) : [];
+    const coordStr = [
+      `${from[1]},${from[0]}`,
+      ...waypoints.map(w=>`${w[1]},${w[0]}`),
+      `${dest.lon},${dest.lat}`,
+    ].join(';');
+    const url = `https://routing.openstreetmap.de/${mc.profile}/route/v1/driving/${coordStr}?overview=full&geometries=geojson&steps=true&annotations=false`;
+
     try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${dest.lon},${dest.lat}?overview=full&geometries=geojson`;
       const d = await (await fetch(url)).json();
-      if (d.code === 'Ok' && d.routes[0]) {
+      if (d.code==='Ok' && d.routes[0]) {
         const r = d.routes[0]; const L = window.L;
-        const pts = r.geometry.coordinates.map(c => [c[1], c[0]]);
-        st.route = L.polyline(pts, { color: '#1565c0', weight: 5, opacity: 0.82 }).addTo(st.map);
-        st.map.fitBounds(L.latLngBounds([[from[0], from[1]], [dest.lat, dest.lon]]).pad(0.15));
-        setRouteInfo({ km: (r.distance / 1000).toFixed(1), min: Math.round(r.duration / 60), name: dest.name, fromGPS: !!userPos });
+        const pts = r.geometry.coordinates.map(c=>[c[1],c[0]]);
+        st.route = L.polyline(pts, { color: mc.lineColor, weight: 5, opacity: 0.85 }).addTo(st.map);
+        st.map.fitBounds(L.latLngBounds([[from[0],from[1]],[dest.lat,dest.lon]]).pad(0.15));
+
+        // Parse steps từ tất cả legs
+        const steps = [];
+        r.legs.forEach(leg => {
+          leg.steps.forEach(step => {
+            if (!step.name && step.maneuver.type==='arrive' && steps.length>0) {
+              steps.push({ icon:'★', text:`Đến ${dest.name}`, dist:'', dur:'' });
+              return;
+            }
+            const roadName = step.name || (step.ref ? `Đường ${step.ref}` : '');
+            const maneuver = step.maneuver;
+            const icon = getTurnIcon(step);
+            let text = '';
+            if (maneuver.type==='depart')  text = `Bắt đầu${roadName?` trên ${roadName}`:''}`;
+            else if (maneuver.type==='arrive') text = `Đến ${dest.name}`;
+            else {
+              const dirMap = { left:'Rẽ trái', right:'Rẽ phải', 'slight left':'Veer trái', 'slight right':'Veer phải', 'sharp left':'Quặt trái', 'sharp right':'Quặt phải', straight:'Đi thẳng', uturn:'Quay đầu' };
+              const dir = dirMap[maneuver.modifier] || 'Tiếp tục';
+              text = `${dir}${roadName?` vào ${roadName}`:''}`;
+            }
+            if (step.distance > 5 || maneuver.type==='depart' || maneuver.type==='arrive') {
+              steps.push({ icon, text, dist: step.distance>0?fmtDist(step.distance):'', dur: step.duration>10?fmtDur(step.duration):'' });
+            }
+          });
+        });
+
+        const totalMin = Math.round(r.duration/60);
+        const timeStr  = totalMin<60 ? `${totalMin} phút` : `${Math.floor(totalMin/60)}h${totalMin%60?` ${totalMin%60}p`:''}`;
+        setRouteInfo({ km:(r.distance/1000).toFixed(1), time: timeStr, name:dest.name, mode, fromGPS:!!userPos, steps });
+      } else {
+        alert('Không tìm được tuyến đường. Thử chuyển sang phương tiện khác.');
       }
-    } catch (e) { console.error(e); }
+    } catch(e) {
+      console.error(e);
+      alert('Lỗi kết nối routing server. Vui lòng thử lại.');
+    }
     setRouting(false);
+  }
+
+  function clearRoute() {
+    const st = stRef.current;
+    if (st.route) { st.route.remove(); st.route=null; }
+    setRouteInfo(null);
   }
 
   function locateMe() {
     navigator.geolocation.getCurrentPosition(pos => {
-      const [lat, lon] = [pos.coords.latitude, pos.coords.longitude];
-      setUserPos([lat, lon]);
-      const L = window.L; const st = stRef.current;
+      const [lat,lon]=[pos.coords.latitude,pos.coords.longitude];
+      setUserPos([lat,lon]);
+      const L=window.L; const st=stRef.current;
       if (st.userMk) st.userMk.remove();
-      const icon = L.divIcon({ className: '', html: `<div style="width:12px;height:12px;border-radius:50%;background:#1565c0;border:2px solid #fff;box-shadow:0 0 0 5px rgba(21,101,192,.22)"></div>`, iconSize: [12,12], iconAnchor: [6,6] });
-      st.userMk = L.marker([lat, lon], { icon }).addTo(st.map).bindPopup('Vị trí của bạn').openPopup();
-      st.map.setView([lat, lon], 11);
-    }, () => alert('Không lấy được vị trí.'));
+      const icon = L.divIcon({ className:'', html:`<div style="width:12px;height:12px;border-radius:50%;background:#1565c0;border:2px solid #fff;box-shadow:0 0 0 5px rgba(21,101,192,.22)"></div>`, iconSize:[12,12],iconAnchor:[6,6] });
+      st.userMk = L.marker([lat,lon],{icon}).addTo(st.map).bindPopup('Vị trí của bạn').openPopup();
+      st.map.setView([lat,lon],11);
+    }, ()=>alert('Không lấy được vị trí.'));
   }
 
-  const selSuit = selected ? SUIT_CFG[getSuit(filterAqi, selected.type)] : null;
+  const selSuit = selected ? SUIT_CFG[getSuit(filterAqi,selected.type)] : null;
+  const [isFS,setIsFS] = useState(false);
+  const wrapRef = useRef(null);
+  function toggleFS() {
+    const el=wrapRef.current; if(!el) return;
+    if(!isFS){(el.requestFullscreen||el.webkitRequestFullscreen||(()=>{})).call(el);}
+    else{(document.exitFullscreen||document.webkitExitFullscreen||(()=>{})).call(document);}
+    setIsFS(f=>!f);
+    setTimeout(()=>stRef.current.map?.invalidateSize(),350);
+  }
 
   return (
-    <div>
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600 }}>NỀN:</span>
-        {Object.entries(BASES).map(([k, b]) => (
-          <button key={k} onClick={() => setBasemap(k)} style={{
-            padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', cursor: 'pointer',
-            border: `1.5px solid ${basemap === k ? '#1565c0' : '#e0e7f0'}`,
-            background: basemap === k ? '#eff6ff' : '#fff',
-            color: basemap === k ? '#1565c0' : '#64748b', fontWeight: basemap === k ? 700 : 400,
-          }}>{b.label}</button>
+    <div ref={wrapRef} style={{ background:isFS?'#fff':'transparent', padding:isFS?12:0 }}>
+
+      {/* ── Thanh điều khiển ── */}
+      <div style={{ display:'flex', gap:6, marginBottom:8, flexWrap:'wrap', alignItems:'center' }}>
+        <span style={{ fontSize:'0.68rem', color:'#94a3b8', fontWeight:600 }}>NỀN:</span>
+        {Object.entries(BASES).map(([k,b])=>(
+          <button key={k} onClick={()=>setBasemap(k)} style={{ padding:'3px 10px', borderRadius:20, fontSize:'0.72rem', cursor:'pointer', border:`1.5px solid ${basemap===k?'#1565c0':'#e0e7f0'}`, background:basemap===k?'#eff6ff':'#fff', color:basemap===k?'#1565c0':'#64748b', fontWeight:basemap===k?700:400 }}>{b.label}</button>
         ))}
-        <button onClick={locateMe} style={{
-          marginLeft: 'auto', padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', cursor: 'pointer',
-          border: `1.5px solid ${userPos ? '#15803d' : '#e0e7f0'}`,
-          background: userPos ? '#f0fdf4' : '#fff',
-          color: userPos ? '#15803d' : '#64748b', fontWeight: 600,
-        }}>{userPos ? 'Đã định vị' : 'Vị trí của tôi'}</button>
-        {routeInfo && (
-          <button onClick={() => { const st = stRef.current; if (st.route) { st.route.remove(); st.route = null; } setRouteInfo(null); }} style={{ padding: '3px 9px', borderRadius: 20, fontSize: '0.72rem', cursor: 'pointer', border: '1.5px solid #fecaca', background: '#fef2f2', color: '#dc2626' }}>
-            Xóa đường
-          </button>
-        )}
+        <button onClick={locateMe} style={{ padding:'3px 10px', borderRadius:20, fontSize:'0.72rem', cursor:'pointer', border:`1.5px solid ${userPos?'#15803d':'#e0e7f0'}`, background:userPos?'#f0fdf4':'#fff', color:userPos?'#15803d':'#64748b', fontWeight:600 }}>
+          {userPos?'Đã định vị':'Vị trí của tôi'}
+        </button>
+        {routeInfo && <button onClick={clearRoute} style={{ padding:'3px 9px', borderRadius:20, fontSize:'0.72rem', cursor:'pointer', border:'1.5px solid #fecaca', background:'#fef2f2', color:'#dc2626' }}>Xóa đường</button>}
+        <button onClick={toggleFS} style={{ marginLeft:'auto', padding:'3px 10px', borderRadius:20, fontSize:'0.72rem', cursor:'pointer', border:'1.5px solid #e0e7f0', background:'#fff', color:'#64748b' }}>
+          {isFS?'Thu nhỏ':'Toàn màn hình'}
+        </button>
       </div>
 
-      {/* Route info */}
+      {/* ── Route summary bar ── */}
       {routeInfo && (
-        <div style={{ marginBottom: 8, padding: '7px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.8rem', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span style={{ color: '#1565c0', fontWeight: 700 }}>{routeInfo.km} km</span>
-          <span style={{ color: '#64748b' }}>· {routeInfo.min} phút lái xe đến {routeInfo.name}</span>
-          {!routeInfo.fromGPS && <span style={{ color: '#94a3b8', fontSize: '0.68rem' }}>(từ trung tâm tỉnh)</span>}
+        <div style={{ marginBottom:8, padding:'8px 14px', borderRadius:8, background: MODES[routeInfo.mode].color+'12', border:`1px solid ${MODES[routeInfo.mode].color}33`, display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
+          <span style={{ fontWeight:800, color:MODES[routeInfo.mode].color, fontSize:'1rem' }}>{routeInfo.km} km</span>
+          <span style={{ color:'#475569', fontSize:'0.82rem' }}>{routeInfo.time} · {MODES[routeInfo.mode].label}</span>
+          <span style={{ color:'#64748b', fontSize:'0.8rem' }}>→ {routeInfo.name}</span>
+          {!routeInfo.fromGPS && <span style={{ color:'#94a3b8', fontSize:'0.68rem' }}>(từ trung tâm tỉnh)</span>}
+          <button onClick={()=>setShowSteps(s=>!s)} style={{ marginLeft:'auto', padding:'3px 10px', borderRadius:6, fontSize:'0.72rem', cursor:'pointer', border:'1px solid #e0e7f0', background:'#fff', color:'#475569' }}>
+            {showSteps?'Ẩn chỉ dẫn':'Xem chỉ dẫn'}
+          </button>
         </div>
       )}
 
-      {/* Map */}
-      <div ref={divRef} style={{ width: '100%', height: 400, borderRadius: 10, border: '1px solid #e0e7f0' }} />
+      {/* ── Step-by-step panel ── */}
+      {routeInfo && showSteps && routeInfo.steps?.length > 0 && (
+        <div style={{ marginBottom:10, background:'#fff', borderRadius:10, border:'1px solid #e0e7f0', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
+          <div style={{ padding:'8px 12px', background:'#f8fafd', borderBottom:'1px solid #f1f5f9', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ fontSize:'0.76rem', fontWeight:700, color:'#334155' }}>Hướng dẫn từng bước ({routeInfo.steps.length} bước)</span>
+            <span style={{ fontSize:'0.68rem', color:'#94a3b8' }}>{routeInfo.km} km · {routeInfo.time}</span>
+          </div>
+          {routeInfo.steps.map((step,i)=>(
+            <div key={i} style={{ display:'flex', gap:10, padding:'7px 12px', borderBottom: i<routeInfo.steps.length-1?'1px solid #f8fafd':'none', alignItems:'flex-start', background: i===0||i===routeInfo.steps.length-1?'#f0fdf4':'#fff' }}>
+              <div style={{ width:24, height:24, borderRadius:'50%', background: i===0?'#15803d': i===routeInfo.steps.length-1?'#dc2626':'#f1f5f9', color: (i===0||i===routeInfo.steps.length-1)?'#fff':'#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.75rem', fontWeight:700, flexShrink:0 }}>
+                {step.icon}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:'0.78rem', color:'#1e293b', fontWeight: i===0||i===routeInfo.steps.length-1?700:400, lineHeight:1.3 }}>{step.text}</div>
+                {(step.dist||step.dur) && (
+                  <div style={{ fontSize:'0.67rem', color:'#94a3b8', marginTop:2 }}>
+                    {step.dist}{step.dist&&step.dur?' · ':''}{step.dur}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Popup */}
+      {/* ── Map ── */}
+      <div ref={divRef} style={{ width:'100%', height:isFS?'calc(100vh - 180px)':400, borderRadius:10, border:'1px solid #e0e7f0' }} />
+
+      {/* ── Popup điểm du lịch ── */}
       {selected && selSuit && (
-        <div style={{ marginTop: 8, background: '#fff', borderRadius: 10, border: `1.5px solid ${selSuit.border}`, padding: '10px 14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-            <b style={{ fontSize: '0.88rem', color: '#1e293b' }}>{selected.name}</b>
-            <span style={{ background: selSuit.color, color: '#fff', borderRadius: 20, padding: '1px 8px', fontSize: '0.62rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{selSuit.label}</span>
+        <div style={{ marginTop:8, background:'#fff', borderRadius:10, border:`1.5px solid ${selSuit.border}`, padding:'10px 14px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:4 }}>
+            <b style={{ fontSize:'0.88rem', color:'#1e293b' }}>{selected.name}</b>
+            <span style={{ background:selSuit.color, color:'#fff', borderRadius:20, padding:'1px 8px', fontSize:'0.62rem', fontWeight:700, whiteSpace:'nowrap' }}>{selSuit.label}</span>
           </div>
-          <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 8px', lineHeight: 1.4 }}>{selected.desc}</p>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.65rem', background: '#f1f5f9', borderRadius: 5, padding: '1px 6px', color: '#64748b' }}>{selected.hours}</span>
-            <span style={{ fontSize: '0.65rem', background: '#f1f5f9', borderRadius: 5, padding: '1px 6px', color: '#64748b' }}>{TYPE_LABEL[selected.type]}</span>
-            <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{selected.lat.toFixed(4)}, {selected.lon.toFixed(4)}</span>
-            <button onClick={() => doRoute(selected)} disabled={routing} style={{ marginLeft: 'auto', padding: '5px 14px', borderRadius: 7, fontSize: '0.76rem', fontWeight: 700, cursor: routing ? 'wait' : 'pointer', border: 'none', background: routing ? '#94a3b8' : '#1565c0', color: '#fff' }}>
-              {routing ? 'Đang tính...' : 'Chỉ đường'}
+          <p style={{ fontSize:'0.75rem', color:'#64748b', margin:'0 0 10px', lineHeight:1.4 }}>{selected.desc}</p>
+
+          {/* Chọn phương tiện */}
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:'0.63rem', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', marginBottom:5 }}>Phương tiện</div>
+            <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+              {Object.entries(MODES).map(([k,m])=>(
+                <button key={k} onClick={()=>setMode(k)} style={{
+                  padding:'5px 11px', borderRadius:7, fontSize:'0.74rem', cursor:'pointer', fontWeight: mode===k?700:400,
+                  border:`1.5px solid ${mode===k?m.color:'#e0e7f0'}`,
+                  background: mode===k?m.color+'18':'#fff',
+                  color: mode===k?m.color:'#64748b',
+                }}>{m.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+            <span style={{ fontSize:'0.65rem', background:'#f1f5f9', borderRadius:5, padding:'1px 6px', color:'#64748b' }}>{selected.hours}</span>
+            <span style={{ fontSize:'0.65rem', background:'#f1f5f9', borderRadius:5, padding:'1px 6px', color:'#64748b' }}>{TYPE_LABEL[selected.type]}</span>
+            <button onClick={()=>doRoute(selected)} disabled={routing} style={{ marginLeft:'auto', padding:'6px 16px', borderRadius:7, fontSize:'0.78rem', fontWeight:700, cursor:routing?'wait':'pointer', border:'none', background:routing?'#94a3b8':MODES[mode].color, color:'#fff' }}>
+              {routing?'Đang tính...':'Chỉ đường'}
             </button>
-            <button onClick={() => setSelected(null)} style={{ padding: '5px 8px', borderRadius: 7, fontSize: '0.76rem', cursor: 'pointer', border: '1px solid #e0e7f0', background: '#f8fafd', color: '#64748b' }}>✕</button>
+            <button onClick={()=>setSelected(null)} style={{ padding:'6px 10px', borderRadius:7, fontSize:'0.76rem', cursor:'pointer', border:'1px solid #e0e7f0', background:'#f8fafd', color:'#64748b' }}>✕</button>
           </div>
         </div>
       )}
 
-      {/* Legend */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, fontSize: '0.65rem', color: '#94a3b8' }}>
-        {Object.entries(CAT_COLOR).map(([k, c]) => (
-          <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, display: 'inline-block' }} />
+      {/* ── Legend ── */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:8, fontSize:'0.65rem', color:'#94a3b8' }}>
+        {Object.entries(CAT_COLOR).map(([k,c])=>(
+          <span key={k} style={{ display:'flex', alignItems:'center', gap:3 }}>
+            <span style={{ width:8, height:8, borderRadius:'50%', background:c, display:'inline-block' }}/>
             {CAT_LABEL[k]}
           </span>
         ))}
-        <span style={{ marginLeft: 4 }}>· viền màu = mức phù hợp AQI</span>
+        <span style={{ marginLeft:4 }}>· viền màu = mức phù hợp AQI</span>
       </div>
-      <p style={{ fontSize: '0.65rem', color: '#b0b8c8', marginTop: 3 }}>Click điểm trên bản đồ để xem chi tiết và chỉ đường (không mở tab mới)</p>
+      <p style={{ fontSize:'0.65rem', color:'#b0b8c8', marginTop:3 }}>Click điểm → chọn phương tiện → Chỉ đường (hướng dẫn từng bước, không mở tab mới)</p>
     </div>
   );
 }
