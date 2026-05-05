@@ -391,25 +391,41 @@ function TourMap({ spots, filterAqi, slug }) {
     setGeocoding(false);
   }
 
-  // ── Waypoints QL1A ────────────────────────────────────────────────────────────
-  function buildVNWaypoints(fromLat, destLat) {
+  // ── Waypoints QL1A - chỉ dùng khi đường dài > 150km để tránh detour ────────
+  function buildVNWaypoints(fromLat, fromLon, destLat, destLon) {
+    // Tính khoảng cách haversine (km)
+    const R = 6371;
+    const dLat = (destLat - fromLat) * Math.PI / 180;
+    const dLon = (destLon - fromLon) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(fromLat*Math.PI/180)*Math.cos(destLat*Math.PI/180)*Math.sin(dLon/2)**2;
+    const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    // Đường ngắn < 150km: để OSRM tự tìm, không force waypoint
+    if (distKm < 150) return [];
+
+    // Đường dài: thêm waypoints dọc QL1A để tránh route qua nước ngoài
     const QL1A = [
       [21.028,105.852],[20.411,106.338],[19.808,105.776],[18.679,105.682],
       [18.343,105.906],[17.467,106.622],[16.462,107.595],[16.054,108.202],
       [15.120,108.800],[13.783,109.214],[12.667,109.100],[11.340,108.100],[10.823,106.630],
     ];
-    const mn=Math.min(fromLat,destLat), mx=Math.max(fromLat,destLat);
+    const mn = Math.min(fromLat, destLat);
+    const mx = Math.max(fromLat, destLat);
+    // Chỉ lấy node nằm giữa 2 điểm, cách mỗi đầu > 0.5 độ (tránh vòng nhỏ)
     return QL1A
-      .filter(([lat])=>lat>mn-0.5&&lat<mx+0.5)
-      .filter(([lat])=>Math.abs(lat-fromLat)>0.3&&Math.abs(lat-destLat)>0.3)
-      .sort((a,b)=>fromLat>destLat?b[0]-a[0]:a[0]-b[0]);
+      .filter(([lat]) => lat > mn + 0.3 && lat < mx - 0.3)
+      .sort((a, b) => fromLat > destLat ? b[0] - a[0] : a[0] - b[0]);
   }
 
   // ── Routing chính ─────────────────────────────────────────────────────────────
   async function doRoute(dest) {
     if (!origin) { alert('Vui lòng nhập điểm xuất phát trước.'); return; }
     const st = stRef.current; if (!st.map) return;
-    if (st.route) { st.route.remove(); st.route=null; }
+    if (st.route) {
+      if (st.route.remove) st.route.remove();
+      else if (st.route.clearLayers) { st.route.clearLayers(); st.route.remove(); }
+      st.route = null;
+    }
     setRouteInfo(null); setRouting(true);
     const from = [origin.lat, origin.lon];
     const mc   = MODES[mode];
@@ -474,7 +490,9 @@ function TourMap({ spots, filterAqi, slug }) {
     }
 
     // ── Ô tô / Xe máy / Đi bộ ────────────────────────────────────────────────
-    const waypoints = mode==='car'||mode==='bike' ? buildVNWaypoints(from[0], dest.lat) : [];
+    const waypoints = (mode==='car'||mode==='bike')
+      ? buildVNWaypoints(from[0], from[1], dest.lat, dest.lon)
+      : [];
     const coordStr = [
       `${from[1]},${from[0]}`,
       ...waypoints.map(w=>`${w[1]},${w[0]}`),
@@ -589,7 +607,7 @@ function TourMap({ spots, filterAqi, slug }) {
 
       {/* ── Thanh điều khiển map ───────────────────────────────────────────────── */}
       <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
-        <span style={{fontSize:'0.68rem',color:'#94a3b8',fontWeight:600}}>LỚP:</span>
+        <span style={{fontSize:'0.68rem',color:'#94a3b8',fontWeight:600}}>NỀN:</span>
         {Object.entries(BASES).map(([k,b])=>(
           <button key={k} onClick={()=>setBasemap(k)} style={{padding:'3px 10px',borderRadius:20,fontSize:'0.72rem',cursor:'pointer',border:`1.5px solid ${basemap===k?'#1565c0':'#e0e7f0'}`,background:basemap===k?'#eff6ff':'#fff',color:basemap===k?'#1565c0':'#64748b',fontWeight:basemap===k?700:400}}>{b.label}</button>
         ))}
@@ -635,7 +653,7 @@ function TourMap({ spots, filterAqi, slug }) {
       )}
 
       {/* ── Map ───────────────────────────────────────────────────────────────── */}
-      <div ref={divRef} style={{width:'100%',height:isFS?'calc(100vh - 260px)':400,borderRadius:10,border:'1px solid #e0e7f0'}} />
+      <div ref={divRef} className="map-h-tour" style={{width:'100%',height:isFS?'calc(100vh - 260px)':400,borderRadius:10,border:'1px solid #e0e7f0'}} />
 
       {/* ── Popup điểm du lịch ────────────────────────────────────────────────── */}
       {selected && selSuit && (
