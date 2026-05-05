@@ -1,17 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Plot from 'react-plotly.js';
 import { AQI_BINS, AQI_LABELS, AQI_COLORS, AQI_RGBA, AQI_TEXT_COLORS, aqiLevel, aqiColor } from '../constants.js';
 
 const L = { plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', font: { family: 'Inter, sans-serif', size: 12 } };
 
-// ── Sticky AQI Legend - table format, collapsible ────────────────────────────
+// ── AQI Legend Table ──────────────────────────────────────────────────────────
 const AQI_TABLE_DATA = [
-  { range: '0 – 49',   desc: 'Không ảnh hưởng tới sức khỏe.' },
-  { range: '50 – 99',  desc: 'Một số chất ô nhiễm ảnh hưởng người rất nhạy cảm.' },
-  { range: '100 – 149',desc: 'Có thể gây hại cho nhóm dễ bị ảnh hưởng.' },
-  { range: '150 – 199',desc: 'Ảnh hưởng sức khỏe toàn dân.' },
-  { range: '200 – 299',desc: 'Khẩn cấp với nhóm dễ bị ảnh hưởng.' },
-  { range: '300 – 499',desc: 'Nguy hại - tình trạng khẩn cấp về môi trường.' },
+  { range: '0 – 49',    desc: 'Không ảnh hưởng tới sức khỏe.' },
+  { range: '50 – 99',   desc: 'Một số chất ô nhiễm ảnh hưởng người rất nhạy cảm.' },
+  { range: '100 – 149', desc: 'Có thể gây hại cho nhóm dễ bị ảnh hưởng.' },
+  { range: '150 – 199', desc: 'Ảnh hưởng sức khỏe toàn dân.' },
+  { range: '200 – 299', desc: 'Khẩn cấp với nhóm dễ bị ảnh hưởng.' },
+  { range: '300 – 499', desc: 'Nguy hại - tình trạng khẩn cấp về môi trường.' },
 ];
 
 function StickyAQILegend({ currentLevel }) {
@@ -73,9 +73,8 @@ function StickyAQILegend({ currentLevel }) {
 
 // ── AQI Hero Card ─────────────────────────────────────────────────────────────
 function AQIHero({ current, recommendation, province }) {
-  const lvl   = current.level;
-  const color = AQI_COLORS[lvl];
-  const tc    = AQI_TEXT_COLORS[lvl];
+  const lvl = current.level;
+  const tc  = AQI_TEXT_COLORS[lvl];
   const bgGrad = [
     'linear-gradient(135deg,#00c853,#00e676)',
     'linear-gradient(135deg,#f9a825,#ffee58)',
@@ -120,9 +119,9 @@ function PollutantGrid({ pollutants }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
         {keys.map(key => {
           const d = pollutants[key]; if (!d) return null;
-          const pct   = Math.min((d.value / d.who) * 100, 200);
-          const color = d.value <= d.who ? '#2e7d32' : d.value <= d.vn ? '#f57c00' : '#c62828';
-          const status= d.value <= d.who ? 'Dưới ngưỡng WHO' : d.value <= d.vn ? 'Trên ngưỡng WHO' : 'Vượt QCVN';
+          const pct    = Math.min((d.value / d.who) * 100, 200);
+          const color  = d.value <= d.who ? '#2e7d32' : d.value <= d.vn ? '#f57c00' : '#c62828';
+          const status = d.value <= d.who ? 'Dưới ngưỡng WHO' : d.value <= d.vn ? 'Trên ngưỡng WHO' : 'Vượt QCVN';
           return (
             <div key={key} style={{ background: '#f8fafd', borderRadius: 8, padding: '10px 12px', borderLeft: `3px solid ${color}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
@@ -145,11 +144,11 @@ function PollutantGrid({ pollutants }) {
 // ── Weather Row ───────────────────────────────────────────────────────────────
 function WeatherRow({ weather }) {
   const items = [
-    { label: 'Nhiệt độ',   key: 'temperature_2m',       unit: '°C',   icon: '🌡️' },
-    { label: 'Độ ẩm',      key: 'relative_humidity_2m', unit: '%',    icon: '💧' },
-    { label: 'Tốc độ gió', key: 'wind_speed_10m',       unit: 'km/h', icon: '💨' },
-    { label: 'Mây che phủ',key: 'cloud_cover',          unit: '%',    icon: '☁️' },
-    { label: 'Áp suất',    key: 'pressure_msl',         unit: 'hPa',  icon: '📊' },
+    { label: 'Nhiệt độ',    key: 'temperature_2m',       unit: '°C'},
+    { label: 'Độ ẩm',       key: 'relative_humidity_2m', unit: '%'},
+    { label: 'Tốc độ gió',  key: 'wind_speed_10m',       unit: 'km/h'},
+    { label: 'Mây che phủ', key: 'cloud_cover',          unit: '%'},
+    { label: 'Áp suất',     key: 'pressure_msl',         unit: 'hPa'},
   ];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 7 }}>
@@ -194,8 +193,50 @@ function GaugeChart({ aqi, label, color }) {
   );
 }
 
-// ── Province Map - scattermapbox với OpenStreetMap thật ───────────────────────
-function ProvinceMapWide({ activeSlug, forecastData }) {
+// ── Tourism data tích hợp vào bản đồ ─────────────────────────────────────────
+const TOURISM_SPOTS = {
+  thanh_hoa: [
+    { name: 'Bãi biển Sầm Sơn',    cat: 'beach',    lat: 19.7318, lon: 105.9047 },
+    { name: 'Thành Nhà Hồ',         cat: 'heritage', lat: 20.0667, lon: 105.5833 },
+    { name: 'Suối cá Cẩm Lương',    cat: 'nature',   lat: 20.2833, lon: 105.2500 },
+    { name: 'Khu du lịch Pù Luông', cat: 'trekking', lat: 20.4167, lon: 105.1167 },
+    { name: 'Biển Hải Tiến',        cat: 'beach',    lat: 20.0500, lon: 105.8167 },
+  ],
+  nghe_an: [
+    { name: 'Bãi biển Cửa Lò',     cat: 'beach',    lat: 18.8167, lon: 105.7167 },
+    { name: 'Khu di tích Kim Liên', cat: 'heritage', lat: 18.6833, lon: 105.3167 },
+    { name: 'Vườn QG Pù Mát',      cat: 'trekking', lat: 18.9167, lon: 104.5000 },
+    { name: 'Thác Khe Kèm',        cat: 'nature',   lat: 19.0167, lon: 104.4167 },
+    { name: 'Đảo Ngư',             cat: 'beach',    lat: 18.7833, lon: 105.7667 },
+  ],
+  ha_tinh: [
+    { name: 'Biển Thiên Cầm',       cat: 'beach',    lat: 18.3500, lon: 106.0167 },
+    { name: 'Ngã Ba Đồng Lộc',      cat: 'heritage', lat: 18.3167, lon: 105.6333 },
+    { name: 'Chùa Hương Tích',      cat: 'heritage', lat: 18.3833, lon: 105.7167 },
+    { name: 'Hồ Kẻ Gỗ',            cat: 'nature',   lat: 18.2167, lon: 105.6500 },
+    { name: 'Khu lưu niệm Nguyễn Du',cat:'heritage', lat: 18.3667, lon: 105.6000 },
+  ],
+  hue: [
+    { name: 'Đại Nội Huế',         cat: 'heritage', lat: 16.4698, lon: 107.5796 },
+    { name: 'Lăng Tự Đức',         cat: 'heritage', lat: 16.4333, lon: 107.5500 },
+    { name: 'Chùa Thiên Mụ',       cat: 'heritage', lat: 16.4540, lon: 107.5460 },
+    { name: 'Biển Lăng Cô',        cat: 'beach',    lat: 16.2167, lon: 108.0833 },
+    { name: 'Vườn QG Bạch Mã',     cat: 'trekking', lat: 16.1833, lon: 107.8500 },
+    { name: 'Phá Tam Giang',        cat: 'nature',   lat: 16.5333, lon: 107.5833 },
+  ],
+};
+
+const CAT_ICONS = { beach: '🏖', trekking: '🌄', nature: '🌿', heritage: '🏛', food: '🍜' };
+const CAT_COLORS = { beach: '#0ea5e9', trekking: '#16a34a', nature: '#22c55e', heritage: '#a855f7', food: '#f97316' };
+
+// ── Interactive Layer Map ─────────────────────────────────────────────────────
+function InteractiveLayerMap({ activeSlug, forecastData }) {
+  const [layers, setLayers] = useState({ aqi: true, tourism: false, terrain: false });
+  const [mapStyle, setMapStyle] = useState('open-street-map');
+  const [selectedSpot, setSelectedSpot] = useState(null);
+
+  const toggleLayer = (key) => setLayers(prev => ({ ...prev, [key]: !prev[key] }));
+
   const aqi = forecastData?.current?.aqi ?? 0;
   const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
   const provinces = [
@@ -205,44 +246,193 @@ function ProvinceMapWide({ activeSlug, forecastData }) {
     { slug: 'hue',       name: 'Huế',        lat: 16.462, lon: 107.595 },
   ];
   const aqiVals = provinces.map(p => p.slug === activeSlug ? aqi : mockAQI[p.slug]);
-  const colors  = aqiVals.map(v => aqiColor(v));
-  const sizes   = provinces.map(p => p.slug === activeSlug ? 38 : 28);
-  const customdata = aqiVals.map((v, i) =>
-    `<b>${provinces[i].name}</b><br>AQI: <b>${Math.round(v)}</b> - ${AQI_LABELS[aqiLevel(v)]}`
-  );
+
+  // Build traces
+  const traces = [];
+
+  // Layer 1: AQI circles
+  if (layers.aqi) {
+    traces.push({
+      type: 'scattermapbox',
+      lat: provinces.map(p => p.lat),
+      lon: provinces.map(p => p.lon),
+      mode: 'markers+text',
+      name: 'AQI',
+      marker: {
+        size: provinces.map(p => p.slug === activeSlug ? 44 : 32),
+        color: aqiVals.map(v => aqiColor(v)),
+        opacity: 0.9,
+      },
+      text: aqiVals.map(v => `${Math.round(v)}`),
+      textposition: 'middle center',
+      textfont: {
+        size: provinces.map(p => p.slug === activeSlug ? 13 : 11),
+        color: aqiVals.map(v => AQI_TEXT_COLORS[aqiLevel(v)]),
+        family: 'Inter, sans-serif',
+      },
+      customdata: provinces.map((p, i) =>
+        `<b>${p.name}</b><br>AQI: <b>${Math.round(aqiVals[i])}</b> · ${AQI_LABELS[aqiLevel(aqiVals[i])]}`
+      ),
+      hovertemplate: '%{customdata}<extra></extra>',
+    });
+  }
+
+  // Layer 2: Tourism spots
+  if (layers.tourism) {
+    const allSpots = [];
+    Object.entries(TOURISM_SPOTS).forEach(([slug, spots]) => {
+      spots.forEach(s => allSpots.push({ ...s, province: slug }));
+    });
+    traces.push({
+      type: 'scattermapbox',
+      lat: allSpots.map(s => s.lat),
+      lon: allSpots.map(s => s.lon),
+      mode: 'markers+text',
+      name: 'Du lịch',
+      marker: {
+        size: 18,
+        color: allSpots.map(s => CAT_COLORS[s.cat] || '#64748b'),
+        opacity: 0.85,
+        symbol: 'circle',
+      },
+      text: allSpots.map(s => CAT_ICONS[s.cat] || '📍'),
+      textposition: 'middle center',
+      textfont: { size: 9, color: '#fff', family: 'Inter, sans-serif' },
+      customdata: allSpots.map(s =>
+        `<b>${s.name}</b><br>${CAT_ICONS[s.cat]} ${s.cat}<br>📍 ${s.province.replace('_',' ')}`
+      ),
+      hovertemplate: '%{customdata}<extra></extra>',
+    });
+  }
+
+  const mapStyleVal = layers.terrain ? 'stamen-terrain' : mapStyle;
+
+  // AQI filter badge
+  const aqiLvl = aqiLevel(aqi);
+  const aqiLevelConfig = [
+    { color: '#00c853', bg: '#f0fdf4' },
+    { color: '#f9a825', bg: '#fffde7' },
+    { color: '#ef6c00', bg: '#fff3e0' },
+    { color: '#c62828', bg: '#fdecea' },
+    { color: '#6a1b9a', bg: '#f3e5f5' },
+    { color: '#880e4f', bg: '#fce4ec' },
+  ][aqiLvl];
 
   return (
-    <Plot
-      data={[{
-        type: 'scattermapbox',
-        lat: provinces.map(p => p.lat),
-        lon: provinces.map(p => p.lon),
-        mode: 'markers+text',
-        marker: { size: sizes, color: colors, opacity: 0.9, allowoverlap: true },
-        text: aqiVals.map(v => `${Math.round(v)}`),
-        textposition: 'middle center',
-        textfont: {
-          size: provinces.map(p => p.slug === activeSlug ? 13 : 11),
-          color: aqiVals.map(v => AQI_TEXT_COLORS[aqiLevel(v)]),
-          family: 'Inter, sans-serif',
-        },
-        customdata,
-        hovertemplate: '%{customdata}<extra></extra>',
-      }]}
-      layout={{
-        mapbox: {
-          style: 'open-street-map',
-          center: { lat: 18.0, lon: 105.8 },
-          zoom: 5.8,
-        },
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        margin: { l: 0, r: 0, t: 0, b: 0 },
-        height: 360,
-        showlegend: false,
-      }}
-      config={{ displayModeBar: false, responsive: true, scrollZoom: false }}
-      style={{ width: '100%', borderRadius: 10, overflow: 'hidden' }}
-    />
+    <div>
+      {/* Map Style & Layer Controls */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        {/* Layer toggles */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lớp bản đồ:</span>
+          {[
+            { key: 'aqi',     label: 'AQI',       desc: 'Chỉ số không khí' },
+            { key: 'tourism', label: 'Du lịch',   desc: 'Điểm tham quan' },
+            { key: 'terrain', label: 'Địa hình',  desc: 'Nền địa hình' },
+          ].map(({ key, label, desc }) => (
+            <button
+              key={key}
+              onClick={() => toggleLayer(key)}
+              title={desc}
+              style={{
+                padding: '5px 12px', borderRadius: 20,
+                border: `2px solid ${layers[key] ? '#1565c0' : '#e0e7f0'}`,
+                background: layers[key] ? '#1565c0' : '#fff',
+                color: layers[key] ? '#fff' : '#64748b',
+                fontWeight: 600, cursor: 'pointer', fontSize: '0.78rem',
+                display: 'flex', alignItems: 'center', gap: 4,
+                transition: 'all 0.15s',
+              }}
+            >
+              {label}
+              {layers[key] && <span style={{ fontSize: '0.6rem', background: 'rgba(255,255,255,0.3)', borderRadius: 10, padding: '0 4px' }}>✓</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Map base style */}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
+          <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Nền:</span>
+          {[
+            { val: 'open-street-map', label: '🗺 OSM' },
+            { val: 'carto-positron',  label: '⬜ Sáng' },
+            { val: 'carto-darkmatter',label: '⬛ Tối' },
+          ].map(({ val, label }) => (
+            <button
+              key={val}
+              onClick={() => { setMapStyle(val); if (val !== 'open-street-map') setLayers(l => ({ ...l, terrain: false })); }}
+              style={{
+                padding: '3px 9px', borderRadius: 6, fontSize: '0.7rem',
+                border: `1px solid ${(!layers.terrain && mapStyle === val) ? '#1565c0' : '#e0e7f0'}`,
+                background: (!layers.terrain && mapStyle === val) ? '#eff6ff' : '#fff',
+                color: (!layers.terrain && mapStyle === val) ? '#1565c0' : '#64748b',
+                cursor: 'pointer', fontWeight: 500,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Legend row */}
+      {layers.aqi && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          {AQI_LABELS.map((lbl, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.68rem' }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: AQI_COLORS[i], border: '1px solid rgba(0,0,0,0.1)' }} />
+              <span style={{ color: '#64748b' }}>{lbl}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {layers.tourism && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          {Object.entries(CAT_COLORS).map(([cat, color]) => (
+            <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.68rem' }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
+              <span style={{ color: '#64748b' }}>{CAT_ICONS[cat]} {cat}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Map */}
+      <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #e0e7f0' }}>
+        <Plot
+          data={traces.length > 0 ? traces : [{
+            type: 'scattermapbox', lat: [18.0], lon: [105.8], mode: 'markers',
+            marker: { size: 0, opacity: 0 }, hoverinfo: 'none',
+          }]}
+          layout={{
+            mapbox: {
+              style: layers.terrain ? 'stamen-terrain' : mapStyleVal,
+              center: { lat: 18.0, lon: 105.8 },
+              zoom: 5.8,
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            margin: { l: 0, r: 0, t: 0, b: 0 },
+            height: 380,
+            showlegend: false,
+          }}
+          config={{ displayModeBar: false, responsive: true, scrollZoom: true }}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      {/* AQI filter tips */}
+      <div style={{
+        marginTop: 10, padding: '8px 14px', borderRadius: 8,
+        background: aqiLevelConfig.bg, border: `1px solid ${aqiLevelConfig.color}22`,
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: aqiLevelConfig.color, flexShrink: 0 }} />
+        <span style={{ fontSize: '0.78rem', color: '#334155' }}>
+          <b>Lọc AQI:</b> Tỉnh được chọn đang ở mức <b style={{ color: aqiLevelConfig.color }}>{AQI_LABELS[aqiLvl]} ({Math.round(aqi)})</b>.
+          Bật layer <b>Du lịch</b> để xem điểm tham quan phù hợp với mức AQI hiện tại.
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -286,7 +476,7 @@ function ForecastChart({ forecast }) {
   );
 }
 
-// ── Safe/Unsafe Windows - hiển thị khung giờ dạng "Xh – Yh" ────────────────
+// ── Safe/Unsafe Windows ───────────────────────────────────────────────────────
 function getHour(f) {
   try { return new Date(f.datetime).getHours(); } catch { return parseInt(f.time_str); }
 }
@@ -309,18 +499,15 @@ function mergeToRanges(items) {
 function fmt(h) { return `${h % 24}h`; }
 
 function SafeWindows({ forecast }) {
-  const safe   = forecast.filter(f => f.level <= 1);
-  const unsafe = forecast.filter(f => f.level >= 3);
-  const safeR  = mergeToRanges(safe);
-  const unsafeR= mergeToRanges(unsafe);
-
+  const safe    = forecast.filter(f => f.level <= 1);
+  const unsafe  = forecast.filter(f => f.level >= 3);
+  const safeR   = mergeToRanges(safe);
+  const unsafeR = mergeToRanges(unsafe);
   const Tag = ({ range, bg, color }) => (
-    <div style={{ background: bg, color, borderRadius: 8, padding: '6px 14px',
-      fontSize: '0.82rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+    <div style={{ background: bg, color, borderRadius: 8, padding: '6px 14px', fontSize: '0.82rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
       {fmt(range[0])} – {fmt(range[1])}
     </div>
   );
-
   return (
     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
       <div style={{background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:12}}>
@@ -347,15 +534,13 @@ function SafeWindows({ forecast }) {
 function HealthAdvisory({ recommendation, forecast }) {
   if (!recommendation) return null;
   const HOUR_SLOTS = [
-    {label:'Sáng sớm',  range:'5–8h',   icon:'🌅', midH: 6  },
-    {label:'Buổi sáng', range:'8–12h',  icon:'☀️', midH: 9  },
-    {label:'Buổi trưa', range:'12–14h', icon:'🌞', midH: 12 },
-    {label:'Buổi chiều',range:'14–18h', icon:'🌤️', midH: 15 },
-    {label:'Chiều tối', range:'18–21h', icon:'🌆', midH: 18 },
-    {label:'Ban đêm',   range:'21–5h',  icon:'🌙', midH: 22 },
+    {label:'Sáng sớm',   range:'5–8h',   icon:'🌅', midH: 6  },
+    {label:'Buổi sáng',  range:'8–12h',  icon:'☀️', midH: 9  },
+    {label:'Buổi trưa',  range:'12–14h', icon:'🌞', midH: 12 },
+    {label:'Buổi chiều', range:'14–18h', icon:'🌤️', midH: 15 },
+    {label:'Chiều tối',  range:'18–21h', icon:'🌆', midH: 18 },
+    {label:'Ban đêm',    range:'21–5h',  icon:'🌙', midH: 22 },
   ];
-
-  // Tìm forecast point gần nhất với từng slot
   const slotData = HOUR_SLOTS.map(slot => {
     const match = forecast?.reduce((best, f) => {
       try {
@@ -367,11 +552,9 @@ function HealthAdvisory({ recommendation, forecast }) {
     }, null);
     return { level: match?.level ?? 1, aqi: match ? Math.round(match.aqi) : null, label: match?.label ?? '' };
   });
-
   const SLOT_BG = ['#f0fdf4','#fffde7','#fff7ed','#fef2f2','#f5f3ff','#f8fafc'];
   const SLOT_TC = ['#15803d','#a16207','#c2410c','#dc2626','#7c3aed','#475569'];
   const statusText = ['An toàn','Chấp nhận','Hạn chế','Tránh ra ngoài','Nguy hiểm','Khẩn cấp'];
-
   return (
     <div style={{background:'#fff', borderRadius:14, padding:16, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
       <div style={{fontWeight:700, color:'#1e293b', marginBottom:3, fontSize:'0.92rem'}}>Khuyến nghị hoạt động theo khung giờ</div>
@@ -382,9 +565,7 @@ function HealthAdvisory({ recommendation, forecast }) {
           const bg = SLOT_BG[Math.min(lvl,5)];
           const tc = SLOT_TC[Math.min(lvl,5)];
           return (
-            <div key={i} style={{background:bg, borderRadius:10, padding:'10px 12px',
-              borderLeft:`3px solid ${tc}`}}>
-              {/* Header: icon + tên + giờ */}
+            <div key={i} style={{background:bg, borderRadius:10, padding:'10px 12px', borderLeft:`3px solid ${tc}`}}>
               <div style={{display:'flex', alignItems:'center', gap:5, marginBottom:6}}>
                 <span style={{fontSize:'1.1rem'}}>{slot.icon}</span>
                 <div>
@@ -392,17 +573,13 @@ function HealthAdvisory({ recommendation, forecast }) {
                   <div style={{fontSize:'0.62rem', color:'#94a3b8'}}>{slot.range}</div>
                 </div>
               </div>
-              {/* AQI dự báo */}
               {aqi != null && (
                 <div style={{display:'flex', alignItems:'baseline', gap:4, marginBottom:4}}>
                   <span style={{fontSize:'1.1rem', fontWeight:900, color:tc}}>{aqi}</span>
                   <span style={{fontSize:'0.65rem', color:'#94a3b8'}}>AQI · {label}</span>
                 </div>
               )}
-              {/* Trạng thái */}
-              <div style={{fontSize:'0.76rem', fontWeight:700, color:tc}}>
-                {statusText[Math.min(lvl,5)]}
-              </div>
+              <div style={{fontSize:'0.76rem', fontWeight:700, color:tc}}>{statusText[Math.min(lvl,5)]}</div>
             </div>
           );
         })}
@@ -421,7 +598,7 @@ function HealthAdvisory({ recommendation, forecast }) {
   );
 }
 
-// ── Main Tab ──────────────────────────────────────────────────────────────────
+// ── Main Export ───────────────────────────────────────────────────────────────
 export default function Tab1Forecast({ data }) {
   if (!data) return null;
   const { current, forecast, pollutants, weather, recommendation, province, slug } = data;
@@ -450,10 +627,15 @@ export default function Tab1Forecast({ data }) {
         </div>
       </div>
 
-      {/* Map full-width */}
-      <div style={{background:'#fff', borderRadius:14, padding:14, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
-        <div style={{fontWeight:700, color:'#1e293b', marginBottom:8, fontSize:'0.9rem'}}>Bản đồ AQI - 4 tỉnh Miền Trung</div>
-        <ProvinceMapWide activeSlug={slug||'thanh_hoa'} forecastData={data} />
+      {/* Interactive Layer Map */}
+      <div style={{background:'#fff', borderRadius:14, padding:16, boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, flexWrap:'wrap', gap:8}}>
+          <div>
+            <div style={{fontWeight:700, color:'#1e293b', fontSize:'0.95rem'}}>🗺️ Bản đồ Tương tác - Miền Trung</div>
+            <div style={{fontSize:'0.74rem', color:'#94a3b8', marginTop:2}}>Bật/tắt các lớp: AQI · Du lịch · Địa hình. Scroll để zoom, kéo để di chuyển.</div>
+          </div>
+        </div>
+        <InteractiveLayerMap activeSlug={slug || 'thanh_hoa'} forecastData={data} />
       </div>
 
       {/* Forecast Chart */}
