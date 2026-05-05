@@ -49,12 +49,11 @@ const TOURISM_DATA = {
 
 const PROVINCE_NAMES = { thanh_hoa: 'Thanh Hóa', nghe_an: 'Nghệ An', ha_tinh: 'Hà Tĩnh', hue: 'Huế' };
 
-const CAT_ICONS = { beach: '🏖️', trekking: '🌄', nature: '🌿', heritage: '🏛️', food: '🍜' };
+const CAT_ICONS  = { beach: '🏖️', trekking: '🌄', nature: '🌿', heritage: '🏛️', food: '🍜' };
 const CAT_LABELS = { beach: 'Biển', trekking: 'Trekking', nature: 'Thiên nhiên', heritage: 'Di tích', food: 'Ẩm thực' };
-const TYPE_ICONS = { outdoor: '🌿', indoor: '🏛️', mixed: '🔀' };
+const TYPE_ICONS  = { outdoor: '🌿', indoor: '🏛️', mixed: '🔀' };
 const TYPE_LABELS = { outdoor: 'Ngoài trời', indoor: 'Trong nhà', mixed: 'Kết hợp' };
 
-// Logic khuyến nghị theo AQI × type
 function getSuitability(aqiValue, type) {
   const lvl = aqiLevel(aqiValue);
   const matrix = {
@@ -66,20 +65,19 @@ function getSuitability(aqiValue, type) {
 }
 
 const SUIT_CONFIG = {
-  great:       { label: 'Rất phù hợp', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0', dot: '🟢' },
-  ok:          { label: 'Phù hợp',     color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', dot: '🔵' },
-  limit:       { label: 'Hạn chế',     color: '#b45309', bg: '#fffbeb', border: '#fde68a', dot: '🟡' },
-  indoor_only: { label: 'Chỉ trong nhà',color:'#9a3412', bg: '#fff7ed', border: '#fed7aa', dot: '🟠' },
-  no:          { label: 'Không nên',   color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '🔴' },
+  great:       { label: 'Rất phù hợp',  color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0', dot: '🟢' },
+  ok:          { label: 'Phù hợp',      color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', dot: '🔵' },
+  limit:       { label: 'Hạn chế',      color: '#b45309', bg: '#fffbeb', border: '#fde68a', dot: '🟡' },
+  indoor_only: { label: 'Chỉ trong nhà',color: '#9a3412', bg: '#fff7ed', border: '#fed7aa', dot: '🟠' },
+  no:          { label: 'Không nên',    color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '🔴' },
 };
 
 function getRecommendationText(aqiValue, slug) {
-  const lvl = aqiLevel(aqiValue);
+  const lvl   = aqiLevel(aqiValue);
   const pname = PROVINCE_NAMES[slug] || '';
   const spots = TOURISM_DATA[slug] || [];
   const bestOutdoor = spots.filter(s => s.type === 'outdoor')[0]?.name || '';
   const bestIndoor  = spots.filter(s => s.type === 'indoor')[0]?.name || '';
-
   const texts = [
     `Hôm nay không khí ${pname} tuyệt vời! Tất cả điểm tham quan đều phù hợp. Đặc biệt lý tưởng cho ${bestOutdoor ? `${bestOutdoor} và ` : ''}các hoạt động ngoài trời.`,
     `Không khí chấp nhận được tại ${pname}. Các điểm outdoor vẫn phù hợp nhưng nên tránh vận động mạnh kéo dài. Nhóm trẻ em và người cao tuổi ưu tiên điểm có mái che.`,
@@ -89,6 +87,14 @@ function getRecommendationText(aqiValue, slug) {
     `Tình trạng khẩn cấp môi trường. Hủy mọi kế hoạch du lịch ngoài trời. Ở trong phòng kín.`,
   ];
   return texts[Math.min(lvl, 5)];
+}
+
+// ── Google Maps link builder ─────────────────────────────────────────────────
+function buildGoogleMapsLink(spot) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${spot.lat},${spot.lon}&travelmode=driving`;
+}
+function buildGoogleMapsSearch(spot) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name)}`;
 }
 
 // ── Spot Card ─────────────────────────────────────────────────────────────────
@@ -101,6 +107,7 @@ function SpotCard({ spot, aqi }) {
       boxShadow: '0 1px 6px rgba(0,0,0,0.07)',
       border: `1px solid ${cfg.border}`,
       display: 'flex', flexDirection: 'column',
+      transition: 'box-shadow 0.2s',
     }}>
       {/* Header */}
       <div style={{ background: cfg.bg, padding: '10px 14px', borderBottom: `1px solid ${cfg.border}` }}>
@@ -120,7 +127,7 @@ function SpotCard({ spot, aqi }) {
       {/* Body */}
       <div style={{ padding: '10px 14px', flex: 1 }}>
         <p style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.5, marginBottom: 8 }}>{spot.desc}</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
           <span style={{ fontSize: '0.68rem', background: '#f1f5f9', borderRadius: 6, padding: '2px 7px', color: '#64748b' }}>
             {TYPE_ICONS[spot.type]} {TYPE_LABELS[spot.type]}
           </span>
@@ -131,51 +138,182 @@ function SpotCard({ spot, aqi }) {
             {CAT_LABELS[spot.cat]}
           </span>
         </div>
+        {/* Navigation buttons */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <a
+            href={buildGoogleMapsLink(spot)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 10px', borderRadius: 7, fontSize: '0.72rem', fontWeight: 600,
+              background: '#1565c0', color: '#fff', textDecoration: 'none',
+              flex: 1, justifyContent: 'center',
+            }}
+          >
+            🧭 Chỉ đường
+          </a>
+          <a
+            href={buildGoogleMapsSearch(spot)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 10px', borderRadius: 7, fontSize: '0.72rem', fontWeight: 600,
+              background: '#f1f5f9', color: '#475569', textDecoration: 'none',
+              flex: 1, justifyContent: 'center',
+            }}
+          >
+            📍 Xem Maps
+          </a>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Map with tourist spots ────────────────────────────────────────────────────
+// ── Tourism Map with layers ───────────────────────────────────────────────────
 function TourismMap({ spots, aqi, slug }) {
-  const lats   = spots.map(s => s.lat);
-  const lons   = spots.map(s => s.lon);
-  const colors = spots.map(s => {
+  const [mapStyle, setMapStyle] = useState('open-street-map');
+  const [showAQI,  setShowAQI]  = useState(false);
+  const [selectedSpot, setSelectedSpot] = useState(null);
+
+  const lats    = spots.map(s => s.lat);
+  const lons    = spots.map(s => s.lon);
+  const colors  = spots.map(s => {
     const suit = getSuitability(aqi, s.type);
     return { great:'#15803d', ok:'#1d4ed8', limit:'#b45309', indoor_only:'#ea580c', no:'#dc2626' }[suit];
   });
-  const texts = spots.map(s => {
+  const customdata = spots.map(s => {
     const suit = getSuitability(aqi, s.type);
-    const cfg = SUIT_CONFIG[suit];
-    return `<b>${s.name}</b><br>${CAT_ICONS[s.cat]} ${CAT_LABELS[s.cat]} · ${TYPE_ICONS[s.type]} ${TYPE_LABELS[s.type]}<br>${cfg.dot} ${cfg.label}<br>🕐 ${s.hours}`;
+    const cfg  = SUIT_CONFIG[suit];
+    return `<b>${s.name}</b><br>${CAT_ICONS[s.cat]} ${CAT_LABELS[s.cat]} · ${TYPE_ICONS[s.type]} ${TYPE_LABELS[s.type]}<br>${cfg.dot} ${cfg.label}<br>🕐 ${s.hours}<br><i>${s.desc}</i>`;
   });
-  // Center map on province
-  const centerLat = lats.reduce((a,b) => a+b, 0) / lats.length;
-  const centerLon = lons.reduce((a,b) => a+b, 0) / lons.length;
+
+  const centerLat = lats.length ? lats.reduce((a,b) => a+b,0) / lats.length : 18;
+  const centerLon = lons.length ? lons.reduce((a,b) => a+b,0) / lons.length : 106;
+
+  const traces = [
+    {
+      type: 'scattermapbox',
+      lat: lats, lon: lons,
+      mode: 'markers+text',
+      marker: { size: 18, color: colors, opacity: 0.92 },
+      text: spots.map(s => CAT_ICONS[s.cat]),
+      textposition: 'middle center',
+      textfont: { size: 10, color: '#fff', family: 'Inter, sans-serif' },
+      customdata,
+      hovertemplate: '%{customdata}<extra></extra>',
+      name: 'Điểm du lịch',
+    },
+  ];
+
+  // Province AQI layer overlay
+  if (showAQI) {
+    const provinces = [
+      { slug: 'thanh_hoa', name: 'Thanh Hóa', lat: 19.808, lon: 105.776 },
+      { slug: 'nghe_an',   name: 'Nghệ An',   lat: 18.679, lon: 105.682 },
+      { slug: 'ha_tinh',   name: 'Hà Tĩnh',   lat: 18.343, lon: 105.906 },
+      { slug: 'hue',       name: 'Huế',        lat: 16.462, lon: 107.595 },
+    ];
+    const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
+    const aqiVals = provinces.map(p => p.slug === slug ? aqi : mockAQI[p.slug]);
+    traces.push({
+      type: 'scattermapbox',
+      lat: provinces.map(p => p.lat),
+      lon: provinces.map(p => p.lon),
+      mode: 'markers+text',
+      marker: {
+        size: provinces.map(p => p.slug === slug ? 40 : 30),
+        color: aqiVals.map(v => AQI_COLORS[aqiLevel(v)]),
+        opacity: 0.75,
+      },
+      text: aqiVals.map(v => `${Math.round(v)}`),
+      textposition: 'middle center',
+      textfont: { size: 11, color: '#222', family: 'Inter, sans-serif' },
+      customdata: provinces.map((p, i) => `<b>${p.name}</b><br>AQI: ${Math.round(aqiVals[i])} · ${AQI_LABELS[aqiLevel(aqiVals[i])]}`),
+      hovertemplate: '%{customdata}<extra></extra>',
+      name: 'AQI',
+    });
+  }
 
   return (
-    <Plot
-      data={[{
-        type: 'scattermapbox',
-        lat: lats, lon: lons,
-        mode: 'markers+text',
-        marker: { size: 16, color: colors, opacity: 0.92 },
-        text: spots.map(s => CAT_ICONS[s.cat]),
-        textposition: 'middle center',
-        textfont: { size: 10, color: '#fff' },
-        customdata: texts,
-        hovertemplate: '%{customdata}<extra></extra>',
-      }]}
-      layout={{
-        mapbox: { style: 'open-street-map', center: { lat: centerLat, lon: centerLon }, zoom: 8.5 },
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        margin: { l: 0, r: 0, t: 0, b: 0 },
-        height: 400, showlegend: false,
-      }}
-      config={{ displayModeBar: true, responsive: true, scrollZoom: true, displaylogo: false,
-        modeBarButtonsToRemove: ['pan2d','select2d','lasso2d','toImage'] }}
-      style={{ width: '100%', borderRadius: 10, overflow: 'hidden' }}
-    />
+    <div>
+      {/* Map controls */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
+        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lớp:</span>
+        <button
+          onClick={() => setShowAQI(v => !v)}
+          style={{
+            padding: '4px 11px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600,
+            border: `2px solid ${showAQI ? '#1565c0' : '#e0e7f0'}`,
+            background: showAQI ? '#1565c0' : '#fff',
+            color: showAQI ? '#fff' : '#64748b', cursor: 'pointer',
+          }}
+        >
+          🎯 AQI {showAQI ? '✓' : ''}
+        </button>
+        <button style={{
+          padding: '4px 11px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600,
+          border: '2px solid #1565c0', background: '#1565c0', color: '#fff', cursor: 'default',
+        }}>🗺️ Du lịch ✓</button>
+
+        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+          <span style={{ fontSize: '0.7rem', color: '#94a3b8', alignSelf: 'center' }}>Nền:</span>
+          {[
+            { val: 'open-street-map', label: '🗺 OSM' },
+            { val: 'carto-positron',  label: '⬜ Sáng' },
+            { val: 'carto-darkmatter',label: '⬛ Tối'  },
+          ].map(({ val, label }) => (
+            <button key={val} onClick={() => setMapStyle(val)} style={{
+              padding: '3px 9px', borderRadius: 6, fontSize: '0.7rem',
+              border: `1px solid ${mapStyle===val ? '#1565c0' : '#e0e7f0'}`,
+              background: mapStyle===val ? '#eff6ff' : '#fff',
+              color: mapStyle===val ? '#1565c0' : '#64748b', cursor: 'pointer',
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+        {Object.entries(SUIT_CONFIG).map(([k, cfg]) => (
+          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.68rem' }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: cfg.color }} />
+            <span style={{ color: '#64748b' }}>{cfg.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #e0e7f0' }}>
+        <Plot
+          data={traces}
+          layout={{
+            mapbox: {
+              style: mapStyle,
+              center: { lat: centerLat, lon: centerLon },
+              zoom: slug === 'hue' ? 9 : 8.2,
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            margin: { l: 0, r: 0, t: 0, b: 0 },
+            height: 420,
+            showlegend: false,
+          }}
+          config={{
+            displayModeBar: true, responsive: true, scrollZoom: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: ['pan2d','select2d','lasso2d','toImage'],
+          }}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      {/* Tip */}
+      <div style={{ marginTop: 8, fontSize: '0.72rem', color: '#94a3b8', display: 'flex', gap: 6, alignItems: 'center' }}>
+        <span>💡</span>
+        <span>Hover vào điểm để xem chi tiết. Click <b>Chỉ đường</b> trong thẻ bên dưới để mở Google Maps.</span>
+      </div>
+    </div>
   );
 }
 
@@ -184,20 +322,21 @@ export default function Tab6Tourism({ data, slug }) {
   const [filterCat,  setFilterCat]  = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [filterSuit, setFilterSuit] = useState('all');
+  const [filterAQI,  setFilterAQI]  = useState(false); // chỉ hiện điểm phù hợp với AQI hiện tại
 
-  const aqi    = data?.current?.aqi ?? 100;
-  const spots  = TOURISM_DATA[slug] || [];
-  const pname  = PROVINCE_NAMES[slug] || slug;
-  const lvl    = aqiLevel(aqi);
-  const aqiColor = AQI_COLORS[lvl];
+  const aqi   = data?.current?.aqi ?? 100;
+  const spots = TOURISM_DATA[slug] || [];
+  const pname = PROVINCE_NAMES[slug] || slug;
+  const lvl   = aqiLevel(aqi);
 
   const filtered = useMemo(() => spots.filter(s => {
     const suit = getSuitability(aqi, s.type);
+    if (filterAQI  && (suit === 'no' || suit === 'indoor_only')) return false;
     if (filterCat  !== 'all' && s.cat  !== filterCat)  return false;
     if (filterType !== 'all' && s.type !== filterType)  return false;
     if (filterSuit !== 'all' && suit   !== filterSuit)  return false;
     return true;
-  }), [spots, filterCat, filterType, filterSuit, aqi]);
+  }), [spots, filterCat, filterType, filterSuit, filterAQI, aqi]);
 
   // Stats
   const suitCounts = useMemo(() => {
@@ -205,6 +344,8 @@ export default function Tab6Tourism({ data, slug }) {
     spots.forEach(s => { const k = getSuitability(aqi, s.type); counts[k]++; });
     return counts;
   }, [spots, aqi]);
+
+  const aqiBgColors = ['#1a7a2e','#6b6b00','#b85c00','#b82222','#6b1a91','#7a0a1a'];
 
   const btnStyle = (active) => ({
     padding: '5px 12px', borderRadius: 8, border: `1px solid ${active ? '#1565c0' : '#e0e7f0'}`,
@@ -216,8 +357,9 @@ export default function Tab6Tourism({ data, slug }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* Header */}
-      <div style={{ borderRadius: 14, padding: '18px 22px', color: '#fff',
-        background: ['#1a7a2e','#6b6b00','#b85c00','#b82222','#6b1a91','#7a0a1a'][lvl] || '#1565c0',
+      <div style={{
+        borderRadius: 14, padding: '18px 22px', color: '#fff',
+        background: aqiBgColors[Math.min(lvl,5)] || '#1565c0',
         boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
       }}>
         <div style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 6 }}>
@@ -226,7 +368,6 @@ export default function Tab6Tourism({ data, slug }) {
         <div style={{ fontSize: '0.88rem', opacity: 0.95, lineHeight: 1.6, marginBottom: 10 }}>
           {getRecommendationText(aqi, slug)}
         </div>
-        {/* Suit summary */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {Object.entries(suitCounts).filter(([,v]) => v > 0).map(([k, v]) => (
             <div key={k} style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 8, padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600 }}>
@@ -237,25 +378,38 @@ export default function Tab6Tourism({ data, slug }) {
       </div>
 
       {/* Map */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.92rem' }}>
-          Bản đồ điểm du lịch - Màu theo mức phù hợp AQI
+      <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.95rem' }}>
+          🗺️ Bản đồ điểm du lịch - Màu theo mức phù hợp AQI
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-          {Object.entries(SUIT_CONFIG).map(([k, cfg]) => (
-            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.7rem' }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: cfg.color }} />
-              <span style={{ color: '#64748b' }}>{cfg.label}</span>
-            </div>
-          ))}
+        <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: 10 }}>
+          Scroll để zoom · Kéo để xoay bản đồ · Hover điểm để xem thông tin
         </div>
         <TourismMap spots={spots} aqi={aqi} slug={slug} />
       </div>
 
       {/* Filters */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 10, fontSize: '0.88rem' }}>Bộ lọc thông minh</div>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 12, fontSize: '0.92rem' }}>Bộ lọc thông minh</div>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+
+          {/* AQI filter */}
+          <div>
+            <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: 5, fontWeight: 600 }}>LỌC THEO AQI HIỆN TẠI</div>
+            <button
+              onClick={() => setFilterAQI(v => !v)}
+              style={{
+                padding: '5px 12px', borderRadius: 8,
+                border: `1px solid ${filterAQI ? AQI_COLORS[lvl] : '#e0e7f0'}`,
+                background: filterAQI ? `${AQI_COLORS[lvl]}22` : '#fff',
+                color: filterAQI ? aqiBgColors[Math.min(lvl,5)] : '#64748b',
+                fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem',
+              }}
+            >
+              {filterAQI ? '✓ ' : ''}Chỉ hiện điểm phù hợp với AQI {Math.round(aqi)}
+            </button>
+          </div>
+
           <div>
             <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: 5, fontWeight: 600 }}>LOẠI KHÔNG GIAN</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -264,25 +418,27 @@ export default function Tab6Tourism({ data, slug }) {
               ))}
             </div>
           </div>
+
           <div>
             <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: 5, fontWeight: 600 }}>LOẠI HÌNH</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[['all','Tất cả'],['beach','Biển'],['trekking','Trekking'],['nature','Thiên nhiên'],['heritage','Di tích'],['food','Ẩm thực']].map(([v,l]) => (
+              {[['all','Tất cả'],['beach','🏖️ Biển'],['trekking','🌄 Trekking'],['nature','🌿 Thiên nhiên'],['heritage','🏛️ Di tích'],['food','🍜 Ẩm thực']].map(([v,l]) => (
                 <button key={v} onClick={() => setFilterCat(v)} style={btnStyle(filterCat===v)}>{l}</button>
               ))}
             </div>
           </div>
+
           <div>
             <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: 5, fontWeight: 600 }}>MỨC PHÙ HỢP</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[['all','Tất cả'],['great','Rất phù hợp'],['ok','Phù hợp'],['limit','Hạn chế'],['no','Không nên']].map(([v,l]) => (
+              {[['all','Tất cả'],['great','🟢 Rất phù hợp'],['ok','🔵 Phù hợp'],['limit','🟡 Hạn chế'],['no','🔴 Không nên']].map(([v,l]) => (
                 <button key={v} onClick={() => setFilterSuit(v)} style={btnStyle(filterSuit===v)}>{l}</button>
               ))}
             </div>
           </div>
         </div>
-        <div style={{ marginTop: 8, fontSize: '0.75rem', color: '#94a3b8' }}>
-          Hiển thị {filtered.length}/{spots.length} điểm
+        <div style={{ marginTop: 10, fontSize: '0.75rem', color: '#94a3b8' }}>
+          Hiển thị <b>{filtered.length}</b>/{spots.length} điểm
         </div>
       </div>
 
@@ -300,8 +456,11 @@ export default function Tab6Tourism({ data, slug }) {
 
       {/* AQI x Type Reference Table */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 10, fontSize: '0.88rem' }}>
-          Bảng khuyến nghị: Mức AQI × Loại địa điểm
+        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.92rem' }}>
+          Danh mục từ và ký hiệu viết tắt - Khuyến nghị theo Mức AQI × Loại địa điểm
+        </div>
+        <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: 12 }}>
+          AQI = Air Quality Index (Chỉ số Chất lượng Không khí) · WHO = World Health Organization · QCVN = Quy chuẩn kỹ thuật Quốc gia Việt Nam
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
@@ -315,16 +474,16 @@ export default function Tab6Tourism({ data, slug }) {
             </thead>
             <tbody>
               {[
-                ['🟢 Tốt (0–50)',       'great','great','ok'],
-                ['🔵 Trung bình (51–100)','ok','ok','ok'],
-                ['🟡 Kém (101–150)',    'limit','limit','ok'],
-                ['🟠 Xấu (151–200)',    'no','indoor_only','ok'],
-                ['🔴 Rất xấu (201–300)','no','no','limit'],
-                ['☠️ Nguy hại (>300)',  'no','no','limit'],
-              ].map(([label, o, m, i], idx) => (
+                ['🟢 Tốt (0–50)',           'great','great','ok'],
+                ['🔵 Trung bình (51–100)',   'ok','ok','ok'],
+                ['🟡 Kém (101–150)',         'limit','limit','ok'],
+                ['🟠 Xấu (151–200)',         'no','indoor_only','ok'],
+                ['🔴 Rất xấu (201–300)',     'no','no','limit'],
+                ['☠️ Nguy hại (>300)',       'no','no','limit'],
+              ].map(([label, o, m, ind], idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 ? '#fafbfc' : '#fff' }}>
                   <td style={{ padding: '7px 12px', fontWeight: 600, color: '#334155' }}>{label}</td>
-                  {[o, m, i].map((suit, j) => {
+                  {[o, m, ind].map((suit, j) => {
                     const cfg = SUIT_CONFIG[suit];
                     return (
                       <td key={j} style={{ padding: '7px 12px', textAlign: 'center' }}>
