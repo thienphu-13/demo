@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import { AQI_BINS, AQI_LABELS, AQI_COLORS, AQI_RGBA, AQI_TEXT_COLORS, aqiLevel, aqiColor } from '../constants.js';
 
@@ -144,11 +144,11 @@ function PollutantGrid({ pollutants }) {
 // ── Weather Row ───────────────────────────────────────────────────────────────
 function WeatherRow({ weather }) {
   const items = [
-    { label: 'Nhiệt độ',    key: 'temperature_2m',       unit: '°C'},
-    { label: 'Độ ẩm',       key: 'relative_humidity_2m', unit: '%'},
-    { label: 'Tốc độ gió',  key: 'wind_speed_10m',       unit: 'km/h'},
-    { label: 'Mây che phủ', key: 'cloud_cover',          unit: '%'},
-    { label: 'Áp suất',     key: 'pressure_msl',         unit: 'hPa'},
+    { label: 'Nhiệt độ',    key: 'temperature_2m',       unit: '°C',   icon: '🌡️' },
+    { label: 'Độ ẩm',       key: 'relative_humidity_2m', unit: '%',    icon: '💧' },
+    { label: 'Tốc độ gió',  key: 'wind_speed_10m',       unit: 'km/h', icon: '💨' },
+    { label: 'Mây che phủ', key: 'cloud_cover',          unit: '%',    icon: '☁️' },
+    { label: 'Áp suất',     key: 'pressure_msl',         unit: 'hPa',  icon: '📊' },
   ];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 7 }}>
@@ -231,205 +231,202 @@ const CAT_COLORS = { beach: '#0ea5e9', trekking: '#16a34a', nature: '#22c55e', h
 
 // ── Interactive Layer Map ─────────────────────────────────────────────────────
 function InteractiveLayerMap({ activeSlug, forecastData }) {
-  const [layers, setLayers] = useState({ aqi: true, tourism: false, terrain: false });
-  const [mapStyle, setMapStyle] = useState('open-street-map');
-  const [selectedSpot, setSelectedSpot] = useState(null);
+  const divRef  = useRef(null);
+  const stRef   = useRef({ map: null, tile: null, aqiGroup: null, tourGroup: null });
+  const wrapRef = useRef(null);
+  const [layers,   setLayers]   = useState({ aqi: true, tourism: false });
+  const [basemap,  setBasemap]  = useState('osm');
+  const [isFS,     setIsFS]     = useState(false);
+  const [popup,    setPopup]    = useState(null);
+  const [ready,    setReady]    = useState(false);
 
-  const toggleLayer = (key) => setLayers(prev => ({ ...prev, [key]: !prev[key] }));
-
-  const aqi = forecastData?.current?.aqi ?? 0;
-  const mockAQI = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
-  const provinces = [
+  const aqi      = forecastData?.current?.aqi ?? 0;
+  const mockAQI  = { thanh_hoa: 147, nghe_an: 89, ha_tinh: 112, hue: 65 };
+  const PROVINCES = [
     { slug: 'thanh_hoa', name: 'Thanh Hóa', lat: 19.808, lon: 105.776 },
     { slug: 'nghe_an',   name: 'Nghệ An',   lat: 18.679, lon: 105.682 },
     { slug: 'ha_tinh',   name: 'Hà Tĩnh',   lat: 18.343, lon: 105.906 },
     { slug: 'hue',       name: 'Huế',        lat: 16.462, lon: 107.595 },
   ];
-  const aqiVals = provinces.map(p => p.slug === activeSlug ? aqi : mockAQI[p.slug]);
 
-  // Build traces
-  const traces = [];
+  const BASES = {
+    osm:  { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',       label: 'Bản đồ',  attr: '© OpenStreetMap' },
+    topo: { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',         label: 'Địa hình', attr: '© OpenTopoMap'  },
+    sat:  { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Vệ tinh', attr: '© Esri'         },
+  };
 
-  // Layer 1: AQI circles
-  if (layers.aqi) {
-    traces.push({
-      type: 'scattermapbox',
-      lat: provinces.map(p => p.lat),
-      lon: provinces.map(p => p.lon),
-      mode: 'markers+text',
-      name: 'AQI',
-      marker: {
-        size: provinces.map(p => p.slug === activeSlug ? 44 : 32),
-        color: aqiVals.map(v => aqiColor(v)),
-        opacity: 0.9,
-      },
-      text: aqiVals.map(v => `${Math.round(v)}`),
-      textposition: 'middle center',
-      textfont: {
-        size: provinces.map(p => p.slug === activeSlug ? 13 : 11),
-        color: aqiVals.map(v => AQI_TEXT_COLORS[aqiLevel(v)]),
-        family: 'Inter, sans-serif',
-      },
-      customdata: provinces.map((p, i) =>
-        `<b>${p.name}</b><br>AQI: <b>${Math.round(aqiVals[i])}</b> · ${AQI_LABELS[aqiLevel(aqiVals[i])]}`
-      ),
-      hovertemplate: '%{customdata}<extra></extra>',
-    });
+  // Khởi tạo Leaflet
+  useEffect(() => {
+    if (!divRef.current) return;
+    if (!document.getElementById('lf-css')) {
+      const l = document.createElement('link');
+      l.id = 'lf-css'; l.rel = 'stylesheet';
+      l.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(l);
+    }
+    if (window.L) { initMap(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    s.onload = initMap;
+    document.head.appendChild(s);
+    return () => { if (stRef.current.map) { stRef.current.map.remove(); stRef.current.map = null; } };
+  }, []);
+
+  function initMap() {
+    if (stRef.current.map || !divRef.current) return;
+    const L = window.L;
+    const map = L.map(divRef.current, { center: [18.0, 106.0], zoom: 7, zoomControl: false });
+    L.control.zoom({ position: 'topright' }).addTo(map);
+    stRef.current.map = map;
+    stRef.current.tile = L.tileLayer(BASES.osm.url, { attribution: BASES.osm.attr }).addTo(map);
+    stRef.current.aqiGroup  = L.layerGroup().addTo(map);
+    stRef.current.tourGroup = L.layerGroup();
+    setReady(true);
   }
 
-  // Layer 2: Tourism spots
-  if (layers.tourism) {
-    const allSpots = [];
+  // Vẽ markers AQI
+  useEffect(() => {
+    if (!ready) return;
+    const L = window.L; const st = stRef.current;
+    st.aqiGroup.clearLayers();
+    if (!layers.aqi) return;
+    PROVINCES.forEach(p => {
+      const val   = p.slug === activeSlug ? aqi : mockAQI[p.slug];
+      const lvl   = aqiLevel(val);
+      const color = AQI_COLORS[lvl];
+      const tc    = AQI_TEXT_COLORS[lvl];
+      const size  = p.slug === activeSlug ? 44 : 36;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:${p.slug===activeSlug?13:11}px;font-weight:800;color:${tc};font-family:Inter,sans-serif;">${Math.round(val)}</div>`,
+        iconSize: [size, size], iconAnchor: [size/2, size/2],
+      });
+      L.marker([p.lat, p.lon], { icon })
+        .addTo(st.aqiGroup)
+        .on('click', () => setPopup({ title: p.name, body: `AQI: ${Math.round(val)} · ${AQI_LABELS[lvl]}`, color }));
+    });
+  }, [ready, layers.aqi, aqi, activeSlug]);
+
+  // Vẽ markers du lịch
+  useEffect(() => {
+    if (!ready) return;
+    const L = window.L; const st = stRef.current;
+    st.tourGroup.clearLayers();
+    if (!layers.tourism) { st.tourGroup.remove(); return; }
+    st.tourGroup.addTo(st.map);
     Object.entries(TOURISM_SPOTS).forEach(([slug, spots]) => {
-      spots.forEach(s => allSpots.push({ ...s, province: slug }));
+      spots.forEach(s => {
+        const color = CAT_COLORS[s.cat] || '#64748b';
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="width:22px;height:22px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;font-size:10px;">${CAT_ICONS[s.cat]||'●'}</div>`,
+          iconSize: [22, 22], iconAnchor: [11, 11],
+        });
+        L.marker([s.lat, s.lon], { icon })
+          .addTo(st.tourGroup)
+          .on('click', () => setPopup({ title: s.name, body: `${CAT_ICONS[s.cat]} ${s.cat} · ${slug.replace('_',' ')}`, color }));
+      });
     });
-    traces.push({
-      type: 'scattermapbox',
-      lat: allSpots.map(s => s.lat),
-      lon: allSpots.map(s => s.lon),
-      mode: 'markers+text',
-      name: 'Du lịch',
-      marker: {
-        size: 18,
-        color: allSpots.map(s => CAT_COLORS[s.cat] || '#64748b'),
-        opacity: 0.85,
-        symbol: 'circle',
-      },
-      text: allSpots.map(s => CAT_ICONS[s.cat] || '📍'),
-      textposition: 'middle center',
-      textfont: { size: 9, color: '#fff', family: 'Inter, sans-serif' },
-      customdata: allSpots.map(s =>
-        `<b>${s.name}</b><br>${CAT_ICONS[s.cat]} ${s.cat}<br>📍 ${s.province.replace('_',' ')}`
-      ),
-      hovertemplate: '%{customdata}<extra></extra>',
-    });
+  }, [ready, layers.tourism]);
+
+  // Đổi basemap
+  useEffect(() => {
+    if (!ready) return;
+    const L = window.L; const st = stRef.current;
+    if (st.tile) st.tile.remove();
+    st.tile = L.tileLayer(BASES[basemap].url, { attribution: BASES[basemap].attr }).addTo(st.map);
+    st.map.getPane('tilePane').style.zIndex = 200;
+    // Đưa các layer markers lên trên tile
+    if (st.aqiGroup)  st.aqiGroup.bringToFront?.();
+    if (st.tourGroup) st.tourGroup.bringToFront?.();
+  }, [basemap, ready]);
+
+  function toggleFS() {
+    const el = wrapRef.current; if (!el) return;
+    if (!isFS) { (el.requestFullscreen || el.webkitRequestFullscreen || (()=>{})).call(el); }
+    else       { (document.exitFullscreen || document.webkitExitFullscreen || (()=>{})).call(document); }
+    setIsFS(f => !f);
+    setTimeout(() => stRef.current.map?.invalidateSize(), 350);
   }
 
-  const mapStyleVal = layers.terrain ? 'stamen-terrain' : mapStyle;
-
-  // AQI filter badge
   const aqiLvl = aqiLevel(aqi);
-  const aqiLevelConfig = [
-    { color: '#00c853', bg: '#f0fdf4' },
-    { color: '#f9a825', bg: '#fffde7' },
-    { color: '#ef6c00', bg: '#fff3e0' },
-    { color: '#c62828', bg: '#fdecea' },
-    { color: '#6a1b9a', bg: '#f3e5f5' },
-    { color: '#880e4f', bg: '#fce4ec' },
-  ][aqiLvl];
+  const aqiBg  = ['#f0fdf4','#fffde7','#fff3e0','#fdecea','#f3e5f5','#fce4ec'][aqiLvl];
+  const aqiClr = ['#00c853','#f9a825','#ef6c00','#c62828','#6a1b9a','#880e4f'][aqiLvl];
 
   return (
-    <div>
-      {/* Map Style & Layer Controls */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-        {/* Layer toggles */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lớp bản đồ:</span>
-          {[
-            { key: 'aqi',     label: 'AQI',       desc: 'Chỉ số không khí' },
-            { key: 'tourism', label: 'Du lịch',   desc: 'Điểm tham quan' },
-            { key: 'terrain', label: 'Địa hình',  desc: 'Nền địa hình' },
-          ].map(({ key, label, desc }) => (
-            <button
-              key={key}
-              onClick={() => toggleLayer(key)}
-              title={desc}
-              style={{
-                padding: '5px 12px', borderRadius: 20,
-                border: `2px solid ${layers[key] ? '#1565c0' : '#e0e7f0'}`,
-                background: layers[key] ? '#1565c0' : '#fff',
-                color: layers[key] ? '#fff' : '#64748b',
-                fontWeight: 600, cursor: 'pointer', fontSize: '0.78rem',
-                display: 'flex', alignItems: 'center', gap: 4,
-                transition: 'all 0.15s',
-              }}
-            >
-              {label}
-              {layers[key] && <span style={{ fontSize: '0.6rem', background: 'rgba(255,255,255,0.3)', borderRadius: 10, padding: '0 4px' }}>✓</span>}
-            </button>
-          ))}
-        </div>
+    <div ref={wrapRef} style={{ background: isFS ? '#fff' : 'transparent', padding: isFS ? 12 : 0 }}>
+      {/* Controls */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Lớp:</span>
+        {[
+          { key: 'aqi',     label: 'AQI' },
+          { key: 'tourism', label: 'Du lịch' },
+        ].map(({ key, label }) => (
+          <button key={key} onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))} style={{
+            padding: '4px 12px', borderRadius: 20, fontSize: '0.74rem', cursor: 'pointer',
+            border: `2px solid ${layers[key] ? '#1565c0' : '#e0e7f0'}`,
+            background: layers[key] ? '#1565c0' : '#fff',
+            color: layers[key] ? '#fff' : '#64748b', fontWeight: 600,
+          }}>{label}{layers[key] ? ' ✓' : ''}</button>
+        ))}
 
-        {/* Map base style */}
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
-          <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Nền:</span>
-          {[
-            { val: 'open-street-map', label: '🗺 OSM' },
-            { val: 'carto-positron',  label: '⬜ Sáng' },
-            { val: 'carto-darkmatter',label: '⬛ Tối' },
-          ].map(({ val, label }) => (
-            <button
-              key={val}
-              onClick={() => { setMapStyle(val); if (val !== 'open-street-map') setLayers(l => ({ ...l, terrain: false })); }}
-              style={{
-                padding: '3px 9px', borderRadius: 6, fontSize: '0.7rem',
-                border: `1px solid ${(!layers.terrain && mapStyle === val) ? '#1565c0' : '#e0e7f0'}`,
-                background: (!layers.terrain && mapStyle === val) ? '#eff6ff' : '#fff',
-                color: (!layers.terrain && mapStyle === val) ? '#1565c0' : '#64748b',
-                cursor: 'pointer', fontWeight: 500,
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: 8 }}>Nền:</span>
+        {Object.entries(BASES).map(([k, b]) => (
+          <button key={k} onClick={() => setBasemap(k)} style={{
+            padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', cursor: 'pointer',
+            border: `1.5px solid ${basemap === k ? '#1565c0' : '#e0e7f0'}`,
+            background: basemap === k ? '#eff6ff' : '#fff',
+            color: basemap === k ? '#1565c0' : '#64748b', fontWeight: basemap === k ? 700 : 400,
+          }}>{b.label}</button>
+        ))}
+
+        <button onClick={toggleFS} title={isFS ? 'Thu nhỏ' : 'Toàn màn hình'} style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', cursor: 'pointer', border: '1.5px solid #e0e7f0', background: '#fff', color: '#64748b' }}>
+          {isFS ? '⊠ Thu nhỏ' : '⊞ Toàn màn hình'}
+        </button>
       </div>
 
-      {/* Legend row */}
+      {/* Legend */}
       {layers.aqi && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6, fontSize: '0.67rem' }}>
           {AQI_LABELS.map((lbl, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.68rem' }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: AQI_COLORS[i], border: '1px solid rgba(0,0,0,0.1)' }} />
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: AQI_COLORS[i], display: 'inline-block', border: '1px solid rgba(0,0,0,.1)' }} />
               <span style={{ color: '#64748b' }}>{lbl}</span>
-            </div>
+            </span>
           ))}
         </div>
       )}
       {layers.tourism && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6, fontSize: '0.67rem' }}>
           {Object.entries(CAT_COLORS).map(([cat, color]) => (
-            <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.68rem' }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
+            <span key={cat} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: color, display: 'inline-block' }} />
               <span style={{ color: '#64748b' }}>{CAT_ICONS[cat]} {cat}</span>
-            </div>
+            </span>
           ))}
         </div>
       )}
 
       {/* Map */}
-      <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #e0e7f0' }}>
-        <Plot
-          data={traces.length > 0 ? traces : [{
-            type: 'scattermapbox', lat: [18.0], lon: [105.8], mode: 'markers',
-            marker: { size: 0, opacity: 0 }, hoverinfo: 'none',
-          }]}
-          layout={{
-            mapbox: {
-              style: layers.terrain ? 'stamen-terrain' : mapStyleVal,
-              center: { lat: 18.0, lon: 105.8 },
-              zoom: 5.8,
-            },
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            margin: { l: 0, r: 0, t: 0, b: 0 },
-            height: 380,
-            showlegend: false,
-          }}
-          config={{ displayModeBar: false, responsive: true, scrollZoom: true }}
-          style={{ width: '100%' }}
-        />
-      </div>
+      <div ref={divRef} style={{ width: '100%', height: isFS ? 'calc(100vh - 140px)' : 380, borderRadius: 10, border: '1px solid #e0e7f0' }} />
 
-      {/* AQI filter tips */}
-      <div style={{
-        marginTop: 10, padding: '8px 14px', borderRadius: 8,
-        background: aqiLevelConfig.bg, border: `1px solid ${aqiLevelConfig.color}22`,
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <div style={{ width: 8, height: 8, borderRadius: '50%', background: aqiLevelConfig.color, flexShrink: 0 }} />
-        <span style={{ fontSize: '0.78rem', color: '#334155' }}>
-          <b>Lọc AQI:</b> Tỉnh được chọn đang ở mức <b style={{ color: aqiLevelConfig.color }}>{AQI_LABELS[aqiLvl]} ({Math.round(aqi)})</b>.
-          Bật layer <b>Du lịch</b> để xem điểm tham quan phù hợp với mức AQI hiện tại.
+      {/* Click popup */}
+      {popup && (
+        <div style={{ marginTop: 8, padding: '8px 14px', borderRadius: 8, background: '#fff', border: `1.5px solid ${popup.color}44`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: popup.color, flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: '0.8rem', color: '#334155' }}>
+            <b>{popup.title}</b> - {popup.body}
+          </div>
+          <button onClick={() => setPopup(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 14 }}>✕</button>
+        </div>
+      )}
+
+      {/* AQI tip */}
+      <div style={{ marginTop: 8, padding: '7px 12px', borderRadius: 8, background: aqiBg, border: `1px solid ${aqiClr}22`, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: aqiClr, flexShrink: 0 }} />
+        <span style={{ fontSize: '0.75rem', color: '#334155' }}>
+          Tỉnh đang chọn: <b style={{ color: aqiClr }}>{AQI_LABELS[aqiLvl]} (AQI {Math.round(aqi)})</b>.
+          Bật layer <b>Du lịch</b> để xem các điểm tham quan trong vùng.
         </span>
       </div>
     </div>
