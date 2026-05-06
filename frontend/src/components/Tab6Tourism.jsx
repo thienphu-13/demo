@@ -230,7 +230,7 @@ function TourMap({ spots, filterAqi, slug }) {
   const [isFS,          setIsFS]          = useState(false);
   const [addrSuggestions, setAddrSuggestions] = useState([]);
 
-  // ── Tile config - CartoDB Voyager hiển thị tên tiếng Việt ───────────────────
+  // ── Tile config ───────────────────────────────────────────────────────────────
   const BASES = {
     osm:  { label: 'Bản đồ',
             base: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
@@ -243,17 +243,20 @@ function TourMap({ spots, filterAqi, slug }) {
     sat:  { label: 'Vệ tinh',
             base: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             baseAttr: '© Esri',
-            // Overlay CartoDB labels-only lên vệ tinh → tên đường tiếng Việt rõ
             label2Url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
             label2Attr: '© CARTO labels', label2Opacity: 0.85 },
   };
 
+  // ── FIX 1: Mỗi phương tiện có profile + endpoint riêng ────────────────────
+  // - car:  routed-car  / driving  → đường lớn, cao tốc
+  // - bike: routed-bike / driving  → đường nhỏ, hẻm, phù hợp xe máy VN
+  // - foot: routed-foot / walking  → đường bộ hành (FIX: trước dùng /driving/ nên lỗi)
+  // - flight: đường thẳng qua sân bay, không dùng OSRM
   const MODES = {
-    car:    { label: 'Ô tô',   color: '#1565c0', profile: 'routed-car',  lineColor: '#1565c0', dash: null },
-    bike:   { label: 'Xe máy', color: '#15803d', profile: 'routed-car',  lineColor: '#15803d', dash: null },
-    // xe máy dùng car profile - routed-bike của FOSSGIS là bicycle, không phải motorbike
-    foot:   { label: 'Đi bộ',  color: '#b45309', profile: 'routed-foot', lineColor: '#b45309', dash: '6 4' },
-    flight: { label: 'Bay',     color: '#6b21a8', profile: null,          lineColor: '#6b21a8', dash: '8 6' },
+    car:    { label: 'Ô tô',   color: '#1565c0', profile: 'routed-car',  endpoint: 'driving', lineColor: '#1565c0', dash: null },
+    bike:   { label: 'Xe máy', color: '#15803d', profile: 'routed-bike', endpoint: 'driving', lineColor: '#15803d', dash: null },
+    foot:   { label: 'Đi bộ',  color: '#b45309', profile: 'routed-foot', endpoint: 'walking', lineColor: '#b45309', dash: '6 4' },
+    flight: { label: 'Bay',     color: '#6b21a8', profile: null,          endpoint: null,      lineColor: '#6b21a8', dash: '8 6' },
   };
 
   const TURN_ICON = {
@@ -295,7 +298,6 @@ function TourMap({ spots, filterAqi, slug }) {
     stRef.current.map      = map;
     stRef.current.baseTile = L.tileLayer(BASES.osm.base, { attribution: BASES.osm.baseAttr }).addTo(map);
 
-    // Click trên map: nếu đang trong chế độ chọn điểm xuất phát → đặt origin
     map.on('click', e => {
       if (!stRef.current.pickMode) return;
       setOriginAt(e.latlng.lat, e.latlng.lng, `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);
@@ -325,7 +327,7 @@ function TourMap({ spots, filterAqi, slug }) {
     });
   }, [spots, filterAqi, ready]);
 
-  // ── Đổi basemap (+ label overlay cho vệ tinh) ────────────────────────────────
+  // ── Đổi basemap ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!ready || !stRef.current.map) return;
     const L = window.L; const st = stRef.current;
@@ -334,15 +336,14 @@ function TourMap({ spots, filterAqi, slug }) {
     const b = BASES[basemap];
     st.baseTile = L.tileLayer(b.base, { attribution: b.baseAttr }).addTo(st.map);
     if (b.label2Url) {
-      // Thêm layer tên đường bán trong suốt lên trên vệ tinh
       st.labelTile = L.tileLayer(b.label2Url, {
         attribution: b.label2Attr, opacity: b.label2Opacity,
-        pane: 'overlayPane',   // đảm bảo nằm trên base tile
+        pane: 'overlayPane',
       }).addTo(st.map);
     }
   }, [basemap, ready]);
 
-  // ── Đặt điểm xuất phát lên map ───────────────────────────────────────────────
+  // ── Đặt điểm xuất phát ───────────────────────────────────────────────────────
   function setOriginAt(lat, lon, label) {
     const L = window.L; const st = stRef.current;
     if (st.originMk) { st.originMk.remove(); st.originMk = null; }
@@ -358,17 +359,14 @@ function TourMap({ spots, filterAqi, slug }) {
     setAddrSuggestions([]);
   }
 
-  // ── Lấy vị trí GPS ───────────────────────────────────────────────────────────
   function locateMe() {
     navigator.geolocation.getCurrentPosition(pos => {
       const lat=pos.coords.latitude, lon=pos.coords.longitude;
-      const label='Vị trí của bạn';
-      setOriginAt(lat, lon, label);
+      setOriginAt(lat, lon, 'Vị trí của bạn');
       stRef.current.map?.setView([lat,lon],11);
     }, ()=>alert('Không lấy được vị trí GPS.'));
   }
 
-  // ── Bật chế độ chấm trên map ─────────────────────────────────────────────────
   function startPickOnMap() {
     const st = stRef.current; if (!st.map) return;
     st.pickMode = true;
@@ -376,7 +374,6 @@ function TourMap({ spots, filterAqi, slug }) {
     st.map.getContainer().style.cursor = 'crosshair';
   }
 
-  // ── Geocode địa chỉ (Nominatim) ──────────────────────────────────────────────
   async function geocodeAddr(q) {
     if (!q || q.length < 3) { setAddrSuggestions([]); return; }
     setGeocoding(true);
@@ -391,19 +388,16 @@ function TourMap({ spots, filterAqi, slug }) {
     setGeocoding(false);
   }
 
-  // ── Waypoints QL1A - chỉ dùng khi đường dài > 150km để tránh detour ────────
+  // ── Waypoints QL1A - chỉ dùng cho ô tô/xe máy đường dài, không dùng cho đi bộ ──
   function buildVNWaypoints(fromLat, fromLon, destLat, destLon) {
-    // Tính khoảng cách haversine (km)
     const R = 6371;
     const dLat = (destLat - fromLat) * Math.PI / 180;
     const dLon = (destLon - fromLon) * Math.PI / 180;
     const a = Math.sin(dLat/2)**2 + Math.cos(fromLat*Math.PI/180)*Math.cos(destLat*Math.PI/180)*Math.sin(dLon/2)**2;
     const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
-    // Đường ngắn < 150km: để OSRM tự tìm, không force waypoint
     if (distKm < 150) return [];
 
-    // Đường dài: thêm waypoints dọc QL1A để tránh route qua nước ngoài
     const QL1A = [
       [21.028,105.852],[20.411,106.338],[19.808,105.776],[18.679,105.682],
       [18.343,105.906],[17.467,106.622],[16.462,107.595],[16.054,108.202],
@@ -411,7 +405,6 @@ function TourMap({ spots, filterAqi, slug }) {
     ];
     const mn = Math.min(fromLat, destLat);
     const mx = Math.max(fromLat, destLat);
-    // Chỉ lấy node nằm giữa 2 điểm, cách mỗi đầu > 0.5 độ (tránh vòng nhỏ)
     return QL1A
       .filter(([lat]) => lat > mn + 0.3 && lat < mx - 0.3)
       .sort((a, b) => fromLat > destLat ? b[0] - a[0] : a[0] - b[0]);
@@ -437,7 +430,6 @@ function TourMap({ spots, filterAqi, slug }) {
       const a=Math.sin(dLat/2)**2+Math.cos(from[0]*Math.PI/180)*Math.cos(dest.lat*Math.PI/180)*Math.sin(dLon/2)**2;
       const distKm=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 
-      // Sân bay gần nhất điểm xuất phát & đích
       const AIRPORTS = [
         {code:'SGN',name:'Tân Sơn Nhất (HCM)', lat:10.8188,lon:106.6520},
         {code:'HAN',name:'Nội Bài (Hà Nội)',    lat:21.2212,lon:105.8070},
@@ -456,7 +448,6 @@ function TourMap({ spots, filterAqi, slug }) {
       const apDest = nearest(dest.lat, dest.lon);
       const flightMin = Math.round(distKm/800*60+60);
 
-      // Vẽ: điểm xuất phát → sân bay nguồn (nét đứt cam) → sân bay đích → đích (nét đứt cam)
       const lines = [
         [[from[0],from[1]],[apFrom.lat,apFrom.lon]],
         [[apFrom.lat,apFrom.lon],[apDest.lat,apDest.lon]],
@@ -467,7 +458,6 @@ function TourMap({ spots, filterAqi, slug }) {
       L.polyline(lines[1],{color:'#6b21a8',weight:4,dashArray:'8 6',opacity:0.85}).addTo(group);
       L.polyline(lines[2],{color:'#f97316',weight:3,dashArray:'5 5',opacity:0.8}).addTo(group);
 
-      // Markers sân bay
       [apFrom, apDest].forEach(ap => {
         const icon = L.divIcon({className:'',html:`<div style="background:#6b21a8;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3)">${ap.code}</div>`,iconAnchor:[16,10]});
         L.marker([ap.lat,ap.lon],{icon}).addTo(group);
@@ -489,16 +479,23 @@ function TourMap({ spots, filterAqi, slug }) {
       setRouting(false); return;
     }
 
-    // ── Ô tô / Xe máy / Đi bộ ────────────────────────────────────────────────
-    const waypoints = (mode==='car'||mode==='bike')
+    // ── Ô tô / Xe máy: dùng waypoints QL1A cho đường dài ─────────────────────
+    // ── Đi bộ: KHÔNG dùng waypoints (quãng đường ngắn, không cần thiết) ──────
+    const waypoints = (mode === 'car' || mode === 'bike')
       ? buildVNWaypoints(from[0], from[1], dest.lat, dest.lon)
       : [];
+
     const coordStr = [
       `${from[1]},${from[0]}`,
-      ...waypoints.map(w=>`${w[1]},${w[0]}`),
+      ...waypoints.map(w => `${w[1]},${w[0]}`),
       `${dest.lon},${dest.lat}`,
     ].join(';');
-    const url = `https://routing.openstreetmap.de/${mc.profile}/route/v1/driving/${coordStr}?overview=full&geometries=geojson&steps=true`;
+
+    // ── FIX 2: Dùng mc.endpoint thay vì hardcode 'driving' ───────────────────
+    // car  → /routed-car/route/v1/driving/...
+    // bike → /routed-bike/route/v1/driving/...  (đường nhỏ hơn, phù hợp xe máy)
+    // foot → /routed-foot/route/v1/walking/...  (trước bị lỗi vì dùng /driving/)
+    const url = `https://routing.openstreetmap.de/${mc.profile}/route/v1/${mc.endpoint}/${coordStr}?overview=full&geometries=geojson&steps=true`;
 
     try {
       const d = await (await fetch(url)).json();
@@ -556,11 +553,10 @@ function TourMap({ spots, filterAqi, slug }) {
   return (
     <div ref={wrapRef} style={{background:isFS?'#fff':'transparent',padding:isFS?12:0}}>
 
-      {/* ── Điểm xuất phát ────────────────────────────────────────────────────── */}
+      {/* ── Điểm xuất phát ─────────────────────────────────────────────────── */}
       <div style={{background:'#f8fafd',borderRadius:10,border:'1px solid #e0e7f0',padding:'10px 14px',marginBottom:10}}>
         <div style={{fontSize:'0.7rem',fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:7}}>Điểm xuất phát</div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',position:'relative'}}>
-          {/* Input địa chỉ */}
           <div style={{flex:1,minWidth:200,position:'relative'}}>
             <input
               value={addrInput}
@@ -568,7 +564,6 @@ function TourMap({ spots, filterAqi, slug }) {
               placeholder="Nhập địa chỉ hoặc tên nơi xuất phát..."
               style={{width:'100%',padding:'6px 10px',borderRadius:7,border:'1px solid #e0e7f0',fontSize:'0.8rem',outline:'none',boxSizing:'border-box'}}
             />
-            {/* Dropdown gợi ý */}
             {addrSuggestions.length>0 && (
               <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e0e7f0',borderRadius:7,boxShadow:'0 4px 12px rgba(0,0,0,.1)',zIndex:1000,marginTop:2}}>
                 {geocoding && <div style={{padding:'6px 10px',fontSize:'0.74rem',color:'#94a3b8'}}>Đang tìm...</div>}
@@ -582,7 +577,6 @@ function TourMap({ spots, filterAqi, slug }) {
               </div>
             )}
           </div>
-          {/* Các nút hành động */}
           <button onClick={locateMe} style={{padding:'6px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:'1.5px solid #e0e7f0',background:'#fff',color:'#64748b',whiteSpace:'nowrap'}}>
             GPS
           </button>
@@ -605,7 +599,7 @@ function TourMap({ spots, filterAqi, slug }) {
         )}
       </div>
 
-      {/* ── Thanh điều khiển map ───────────────────────────────────────────────── */}
+      {/* ── Thanh điều khiển map ───────────────────────────────────────────── */}
       <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
         <span style={{fontSize:'0.68rem',color:'#94a3b8',fontWeight:600}}>NỀN:</span>
         {Object.entries(BASES).map(([k,b])=>(
@@ -619,7 +613,7 @@ function TourMap({ spots, filterAqi, slug }) {
         </button>
       </div>
 
-      {/* ── Route summary ─────────────────────────────────────────────────────── */}
+      {/* ── Route summary ──────────────────────────────────────────────────── */}
       {routeInfo && (
         <div style={{marginBottom:8,padding:'8px 14px',borderRadius:8,background:MODES[routeInfo.mode].color+'12',border:`1px solid ${MODES[routeInfo.mode].color}33`,display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
           <span style={{fontWeight:800,color:MODES[routeInfo.mode].color,fontSize:'1rem'}}>{routeInfo.km} km</span>
@@ -631,7 +625,7 @@ function TourMap({ spots, filterAqi, slug }) {
         </div>
       )}
 
-      {/* ── Step-by-step ──────────────────────────────────────────────────────── */}
+      {/* ── Step-by-step ──────────────────────────────────────────────────── */}
       {routeInfo && showSteps && routeInfo.steps?.length>0 && (
         <div style={{marginBottom:10,background:'#fff',borderRadius:10,border:'1px solid #e0e7f0',overflow:'hidden',maxHeight:220,overflowY:'auto'}}>
           <div style={{padding:'8px 12px',background:'#f8fafd',borderBottom:'1px solid #f1f5f9',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -652,10 +646,10 @@ function TourMap({ spots, filterAqi, slug }) {
         </div>
       )}
 
-      {/* ── Map ───────────────────────────────────────────────────────────────── */}
+      {/* ── Map ──────────────────────────────────────────────────────────────── */}
       <div ref={divRef} className="map-h-tour" style={{width:'100%',height:isFS?'calc(100vh - 260px)':400,borderRadius:10,border:'1px solid #e0e7f0'}} />
 
-      {/* ── Popup điểm du lịch ────────────────────────────────────────────────── */}
+      {/* ── Popup điểm du lịch ─────────────────────────────────────────────── */}
       {selected && selSuit && (
         <div style={{marginTop:8,background:'#fff',borderRadius:10,border:`1.5px solid ${selSuit.border}`,padding:'10px 14px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,marginBottom:4}}>
@@ -663,7 +657,6 @@ function TourMap({ spots, filterAqi, slug }) {
             <span style={{background:selSuit.color,color:'#fff',borderRadius:20,padding:'1px 8px',fontSize:'0.62rem',fontWeight:700,whiteSpace:'nowrap'}}>{selSuit.label}</span>
           </div>
           <p style={{fontSize:'0.75rem',color:'#64748b',margin:'0 0 10px',lineHeight:1.4}}>{selected.desc}</p>
-          {/* Chọn phương tiện */}
           <div style={{marginBottom:8}}>
             <div style={{fontSize:'0.63rem',color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:5}}>Phương tiện</div>
             <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
@@ -729,7 +722,6 @@ export default function Tab6Tourism({ data, slug }) {
   const [fCat,  setFCat]  = useState('all');
   const [fType, setFType] = useState('all');
 
-  // Sync slider to real AQI when province changes
   useEffect(() => { setSliderAqi(Math.round(realAqi)); }, [slug, realAqi]);
 
   const spots = TOURISM_DATA[slug] || [];
@@ -738,7 +730,7 @@ export default function Tab6Tourism({ data, slug }) {
 
   const filtered = useMemo(() => spots.filter(s => {
     const suit = getSuit(sliderAqi, s.type);
-    if (suit === 'no' || suit === 'indoor_only') return false; // chỉ hiện phù hợp với AQI slider
+    if (suit === 'no' || suit === 'indoor_only') return false;
     if (fCat  !== 'all' && s.cat  !== fCat)  return false;
     if (fType !== 'all' && s.type !== fType) return false;
     return true;
@@ -788,7 +780,7 @@ export default function Tab6Tourism({ data, slug }) {
         <TourMap spots={allFiltered} filterAqi={sliderAqi} slug={slug} />
       </div>
 
-      {/* Bộ lọc loại hình (tách riêng khỏi AQI slider) */}
+      {/* Bộ lọc */}
       <div style={{ background: '#fff', borderRadius: 12, padding: 14, boxShadow: '0 1px 6px rgba(0,0,0,.06)' }}>
         <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 10, fontSize: '0.86rem' }}>Lọc danh sách</div>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -811,7 +803,7 @@ export default function Tab6Tourism({ data, slug }) {
         </div>
       </div>
 
-      {/* Cards - chỉ hiện điểm phù hợp với AQI slider */}
+      {/* Cards */}
       <div>
         <div style={{ marginBottom: 8, fontSize: '0.78rem', color: '#64748b' }}>
           Ở mức AQI <b style={{ color: '#1e293b' }}>{sliderAqi}</b>, có <b style={{ color: '#1e293b' }}>{filtered.length}</b>/{spots.length} điểm phù hợp
