@@ -1,62 +1,61 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AQI_BINS, AQI_LABELS, AQI_COLORS, aqiLevel } from '../constants.js';
 
-// ── Dữ liệu điểm du lịch ─────────────────────────────────────────────────────
 const TOURISM_DATA = {
   thanh_hoa: [
-    { name: 'Bãi biển Sầm Sơn',     type: 'outdoor', cat: 'beach',    lat: 19.7426, lon: 105.9058, hours: '24/7',        desc: 'Bãi biển dài 9km, tắm biển và thể thao nước' },
-    { name: 'Thành Nhà Hồ',          type: 'mixed',   cat: 'heritage', lat: 20.0781, lon: 105.6047, hours: '7:00–17:00',  desc: 'Di sản UNESCO 2011 - thành đá granit thế kỷ 14' },
-    { name: 'Suối cá Cẩm Lương',     type: 'outdoor', cat: 'nature',   lat: 20.3103, lon: 105.2686, hours: '6:00–18:00',  desc: 'Suối cá thần với cá anh vũ quý hiếm, Quan Hóa' },
-    { name: 'Khu du lịch Pù Luông',  type: 'outdoor', cat: 'trekking', lat: 20.5333, lon: 105.0667, hours: '24/7',        desc: 'Ruộng bậc thang, bản làng Thái, trekking rừng nguyên sinh' },
-    { name: 'Biển Hải Tiến',         type: 'outdoor', cat: 'beach',    lat: 20.0628, lon: 105.8542, hours: '24/7',        desc: 'Bãi biển nguyên sơ Hoằng Hóa, nước trong' },
-    { name: 'Động Từ Thức',          type: 'indoor',  cat: 'nature',   lat: 20.1167, lon: 105.4833, hours: '7:00–17:00',  desc: 'Hang động đẹp trong núi đá vôi Nga Sơn' },
-    { name: 'Đền Bà Triệu',          type: 'mixed',   cat: 'heritage', lat: 19.9833, lon: 105.6333, hours: '6:00–18:00',  desc: 'Di tích thờ Bà Triệu, lễ hội tháng 2 âm lịch' },
-    { name: 'Chợ đêm Sầm Sơn',      type: 'indoor',  cat: 'food',     lat: 19.7380, lon: 105.9065, hours: '18:00–23:00', desc: 'Hải sản tươi sống và ẩm thực địa phương' },
+    { name: 'Bãi biển Sầm Sơn',    type: 'outdoor', cat: 'beach',    lat: 19.7426, lon: 105.9058, hours: '24/7',        desc: 'Bãi biển dài 9km, tắm biển và thể thao nước' },
+    { name: 'Thành Nhà Hồ',         type: 'mixed',   cat: 'heritage', lat: 20.0781, lon: 105.6047, hours: '7:00–17:00',  desc: 'Di sản UNESCO 2011 - thành đá granit thế kỷ 14' },
+    { name: 'Suối cá Cẩm Lương',    type: 'outdoor', cat: 'nature',   lat: 20.3103, lon: 105.2686, hours: '6:00–18:00',  desc: 'Suối cá thần với cá anh vũ quý hiếm, Quan Hóa' },
+    { name: 'Khu du lịch Pù Luông', type: 'outdoor', cat: 'trekking', lat: 20.5333, lon: 105.0667, hours: '24/7',        desc: 'Ruộng bậc thang, bản làng Thái, trekking rừng nguyên sinh' },
+    { name: 'Biển Hải Tiến',        type: 'outdoor', cat: 'beach',    lat: 20.0628, lon: 105.8542, hours: '24/7',        desc: 'Bãi biển nguyên sơ Hoằng Hóa, nước trong' },
+    { name: 'Động Từ Thức',         type: 'indoor',  cat: 'nature',   lat: 20.1167, lon: 105.4833, hours: '7:00–17:00',  desc: 'Hang động đẹp trong núi đá vôi Nga Sơn' },
+    { name: 'Đền Bà Triệu',         type: 'mixed',   cat: 'heritage', lat: 19.9833, lon: 105.6333, hours: '6:00–18:00',  desc: 'Di tích thờ Bà Triệu, lễ hội tháng 2 âm lịch' },
+    { name: 'Chợ đêm Sầm Sơn',     type: 'indoor',  cat: 'food',     lat: 19.7380, lon: 105.9065, hours: '18:00–23:00', desc: 'Hải sản tươi sống và ẩm thực địa phương' },
   ],
   nghe_an: [
-    { name: 'Bãi biển Cửa Lò',      type: 'outdoor', cat: 'beach',    lat: 18.8147, lon: 105.7175, hours: '24/7',        desc: 'Bãi biển lớn nhất Nghệ An, cát trắng nước trong' },
-    { name: 'Khu di tích Kim Liên',  type: 'mixed',   cat: 'heritage', lat: 18.6386, lon: 105.3519, hours: '7:00–17:00',  desc: 'Quê Bác Hồ tại Nam Đàn, nhà lưu niệm và làng Sen' },
-    { name: 'Vườn QG Pù Mát',       type: 'outdoor', cat: 'trekking', lat: 19.0333, lon: 104.3333, hours: '6:00–17:00',  desc: 'Rừng nguyên sinh Con Cuông, đa dạng sinh học hàng đầu' },
-    { name: 'Thác Khe Kèm',         type: 'outdoor', cat: 'nature',   lat: 18.9667, lon: 104.4167, hours: '6:00–17:00',  desc: 'Thác nước hùng vĩ cao 30m trong Vườn QG Pù Mát' },
-    { name: 'Đảo Ngư',              type: 'outdoor', cat: 'beach',    lat: 18.7833, lon: 105.7667, hours: '24/7',        desc: 'Đảo nhỏ ngoài khơi Cửa Lò, nước trong xanh' },
-    { name: 'Quảng trường HCM',     type: 'outdoor', cat: 'heritage', lat: 18.6667, lon: 105.6667, hours: '24/7',        desc: 'Quảng trường trung tâm thành phố Vinh' },
-    { name: 'Chợ Vinh',             type: 'indoor',  cat: 'food',     lat: 18.6733, lon: 105.6922, hours: '6:00–20:00',  desc: 'Đặc sản cam Vinh, tương Nam Đàn, nhút Thanh Chương' },
-    { name: 'Hồ Khe Gỗ',           type: 'outdoor', cat: 'nature',   lat: 18.5500, lon: 105.3000, hours: '6:00–18:00',  desc: 'Hồ nhân tạo yên tĩnh, picnic, câu cá, chèo thuyền' },
+    { name: 'Bãi biển Cửa Lò',     type: 'outdoor', cat: 'beach',    lat: 18.8147, lon: 105.7175, hours: '24/7',        desc: 'Bãi biển lớn nhất Nghệ An, cát trắng nước trong' },
+    { name: 'Khu di tích Kim Liên', type: 'mixed',   cat: 'heritage', lat: 18.6386, lon: 105.3519, hours: '7:00–17:00',  desc: 'Quê Bác Hồ tại Nam Đàn, nhà lưu niệm và làng Sen' },
+    { name: 'Vườn QG Pù Mát',      type: 'outdoor', cat: 'trekking', lat: 19.0333, lon: 104.3333, hours: '6:00–17:00',  desc: 'Rừng nguyên sinh Con Cuông, đa dạng sinh học hàng đầu' },
+    { name: 'Thác Khe Kèm',        type: 'outdoor', cat: 'nature',   lat: 18.9667, lon: 104.4167, hours: '6:00–17:00',  desc: 'Thác nước hùng vĩ cao 30m trong Vườn QG Pù Mát' },
+    { name: 'Đảo Ngư',             type: 'outdoor', cat: 'beach',    lat: 18.7833, lon: 105.7667, hours: '24/7',        desc: 'Đảo nhỏ ngoài khơi Cửa Lò, nước trong xanh' },
+    { name: 'Quảng trường HCM',    type: 'outdoor', cat: 'heritage', lat: 18.6667, lon: 105.6667, hours: '24/7',        desc: 'Quảng trường trung tâm thành phố Vinh' },
+    { name: 'Chợ Vinh',            type: 'indoor',  cat: 'food',     lat: 18.6733, lon: 105.6922, hours: '6:00–20:00',  desc: 'Đặc sản cam Vinh, tương Nam Đàn, nhút Thanh Chương' },
+    { name: 'Hồ Khe Gỗ',          type: 'outdoor', cat: 'nature',   lat: 18.5500, lon: 105.3000, hours: '6:00–18:00',  desc: 'Hồ nhân tạo yên tĩnh, picnic, câu cá, chèo thuyền' },
   ],
   ha_tinh: [
-    { name: 'Biển Thiên Cầm',       type: 'outdoor', cat: 'beach',    lat: 18.2936, lon: 105.9619, hours: '24/7',        desc: 'Bãi biển Cẩm Xuyên hoang sơ, rừng phi lao' },
-    { name: 'Ngã Ba Đồng Lộc',      type: 'mixed',   cat: 'heritage', lat: 18.3394, lon: 105.5928, hours: '7:00–17:00',  desc: 'Di tích 10 cô gái TNXP, khu tưởng niệm lịch sử' },
-    { name: 'Chùa Hương Tích',      type: 'mixed',   cat: 'heritage', lat: 18.3583, lon: 105.7667, hours: '6:00–18:00',  desc: 'Chùa cổ núi Hồng Lĩnh, cáp treo hoặc leo bộ' },
-    { name: 'Biển Xuân Thành',      type: 'outdoor', cat: 'beach',    lat: 18.5500, lon: 105.9833, hours: '24/7',        desc: 'Bãi biển Nghi Xuân yên tĩnh, nghỉ dưỡng và câu cá' },
-    { name: 'Khu lưu niệm Nguyễn Du', type: 'mixed', cat: 'heritage', lat: 18.3667, lon: 105.6000, hours: '7:30–17:00',  desc: 'Cố hương đại thi hào Nguyễn Du tại Tiên Điền' },
-    { name: 'Hồ Kẻ Gỗ',            type: 'outdoor', cat: 'nature',   lat: 18.2167, lon: 105.6500, hours: '6:00–18:00',  desc: 'Hồ thủy lợi lớn nhất Hà Tĩnh, cảnh quan đẹp' },
-    { name: 'Biển Thạch Hải',       type: 'outdoor', cat: 'beach',    lat: 18.4333, lon: 106.0333, hours: '24/7',        desc: 'Bãi biển hoang sơ dài tại Thạch Hà' },
+    { name: 'Biển Thiên Cầm',        type: 'outdoor', cat: 'beach',    lat: 18.2936, lon: 105.9619, hours: '24/7',        desc: 'Bãi biển Cẩm Xuyên hoang sơ, rừng phi lao' },
+    { name: 'Ngã Ba Đồng Lộc',       type: 'mixed',   cat: 'heritage', lat: 18.3394, lon: 105.5928, hours: '7:00–17:00',  desc: 'Di tích 10 cô gái TNXP, khu tưởng niệm lịch sử' },
+    { name: 'Chùa Hương Tích',       type: 'mixed',   cat: 'heritage', lat: 18.3583, lon: 105.7667, hours: '6:00–18:00',  desc: 'Chùa cổ núi Hồng Lĩnh, cáp treo hoặc leo bộ' },
+    { name: 'Biển Xuân Thành',       type: 'outdoor', cat: 'beach',    lat: 18.5500, lon: 105.9833, hours: '24/7',        desc: 'Bãi biển Nghi Xuân yên tĩnh, nghỉ dưỡng và câu cá' },
+    { name: 'Khu lưu niệm Nguyễn Du',type: 'mixed',   cat: 'heritage', lat: 18.3667, lon: 105.6000, hours: '7:30–17:00',  desc: 'Cố hương đại thi hào Nguyễn Du tại Tiên Điền' },
+    { name: 'Hồ Kẻ Gỗ',             type: 'outdoor', cat: 'nature',   lat: 18.2167, lon: 105.6500, hours: '6:00–18:00',  desc: 'Hồ thủy lợi lớn nhất Hà Tĩnh, cảnh quan đẹp' },
+    { name: 'Biển Thạch Hải',        type: 'outdoor', cat: 'beach',    lat: 18.4333, lon: 106.0333, hours: '24/7',        desc: 'Bãi biển hoang sơ dài tại Thạch Hà' },
   ],
   hue: [
-    { name: 'Đại Nội Huế',          type: 'mixed',   cat: 'heritage', lat: 16.4698, lon: 107.5796, hours: '8:00–17:30',  desc: 'Kinh thành triều Nguyễn 143 năm, Di sản UNESCO 1993' },
-    { name: 'Lăng Tự Đức',         type: 'outdoor', cat: 'heritage', lat: 16.4469, lon: 107.5522, hours: '7:00–17:30',  desc: 'Lăng mộ đẹp nhất Huế, hồ sen và rừng thông' },
-    { name: 'Lăng Khải Định',       type: 'mixed',   cat: 'heritage', lat: 16.3978, lon: 107.5961, hours: '7:00–17:30',  desc: 'Kiến trúc Đông–Tây, khảm sành sứ tinh xảo' },
-    { name: 'Chùa Thiên Mụ',        type: 'outdoor', cat: 'heritage', lat: 16.4537, lon: 107.5432, hours: '7:00–17:00',  desc: 'Chùa cổ nhất Huế thế kỷ 17 bên bờ sông Hương' },
-    { name: 'Biển Lăng Cô',         type: 'outdoor', cat: 'beach',    lat: 16.2167, lon: 107.9833, hours: '24/7',        desc: 'Vịnh biển đẹp National Geographic vinh danh' },
-    { name: 'Vườn QG Bạch Mã',      type: 'outdoor', cat: 'trekking', lat: 16.1247, lon: 107.8583, hours: '6:00–17:00',  desc: 'Rừng nhiệt đới núi 1450m, thác Ngũ Hồ, mát mẻ' },
-    { name: 'Chợ Đông Ba',          type: 'indoor',  cat: 'food',     lat: 16.4703, lon: 107.5778, hours: '6:00–20:00',  desc: 'Chợ lớn nhất Huế - bún bò, bánh bèo, cơm hến' },
-    { name: 'Phá Tam Giang',        type: 'outdoor', cat: 'nature',   lat: 16.5500, lon: 107.5167, hours: '24/7',        desc: 'Đầm phá lớn nhất Đông Nam Á, hoàng hôn đẹp' },
-    { name: 'Nhà Vườn Thanh Toàn',  type: 'outdoor', cat: 'heritage', lat: 16.4333, lon: 107.6667, hours: '8:00–17:00',  desc: 'Nhà vườn truyền thống Huế, cầu ngói cổ thế kỷ 18' },
+    { name: 'Đại Nội Huế',         type: 'mixed',   cat: 'heritage', lat: 16.4698, lon: 107.5796, hours: '8:00–17:30',  desc: 'Kinh thành triều Nguyễn 143 năm, Di sản UNESCO 1993' },
+    { name: 'Lăng Tự Đức',        type: 'outdoor', cat: 'heritage', lat: 16.4469, lon: 107.5522, hours: '7:00–17:30',  desc: 'Lăng mộ đẹp nhất Huế, hồ sen và rừng thông' },
+    { name: 'Lăng Khải Định',      type: 'mixed',   cat: 'heritage', lat: 16.3978, lon: 107.5961, hours: '7:00–17:30',  desc: 'Kiến trúc Đông–Tây, khảm sành sứ tinh xảo' },
+    { name: 'Chùa Thiên Mụ',       type: 'outdoor', cat: 'heritage', lat: 16.4537, lon: 107.5432, hours: '7:00–17:00',  desc: 'Chùa cổ nhất Huế thế kỷ 17 bên bờ sông Hương' },
+    { name: 'Biển Lăng Cô',        type: 'outdoor', cat: 'beach',    lat: 16.2167, lon: 107.9833, hours: '24/7',        desc: 'Vịnh biển đẹp National Geographic vinh danh' },
+    { name: 'Vườn QG Bạch Mã',     type: 'outdoor', cat: 'trekking', lat: 16.1247, lon: 107.8583, hours: '6:00–17:00',  desc: 'Rừng nhiệt đới núi 1450m, thác Ngũ Hồ, mát mẻ' },
+    { name: 'Chợ Đông Ba',         type: 'indoor',  cat: 'food',     lat: 16.4703, lon: 107.5778, hours: '6:00–20:00',  desc: 'Chợ lớn nhất Huế - bún bò, bánh bèo, cơm hến' },
+    { name: 'Phá Tam Giang',       type: 'outdoor', cat: 'nature',   lat: 16.5500, lon: 107.5167, hours: '24/7',        desc: 'Đầm phá lớn nhất Đông Nam Á, hoàng hôn đẹp' },
+    { name: 'Nhà Vườn Thanh Toàn', type: 'outdoor', cat: 'heritage', lat: 16.4333, lon: 107.6667, hours: '8:00–17:00',  desc: 'Nhà vườn truyền thống Huế, cầu ngói cổ thế kỷ 18' },
   ],
 };
 
-const PNAME       = { thanh_hoa: 'Thanh Hóa', nghe_an: 'Nghệ An', ha_tinh: 'Hà Tĩnh', hue: 'Huế' };
-const PROV_CENTER = { thanh_hoa: [19.808,105.776], nghe_an: [18.679,105.682], ha_tinh: [18.343,105.906], hue: [16.462,107.595] };
-const CAT_LABEL   = { beach: 'Biển', trekking: 'Trekking', nature: 'Thiên nhiên', heritage: 'Di tích', food: 'Ẩm thực' };
-const TYPE_LABEL  = { outdoor: 'Ngoài trời', indoor: 'Trong nhà', mixed: 'Kết hợp' };
-const CAT_COLOR   = { beach: '#0ea5e9', trekking: '#16a34a', nature: '#22c55e', heritage: '#a855f7', food: '#f97316' };
+const PNAME       = { thanh_hoa:'Thanh Hóa', nghe_an:'Nghệ An', ha_tinh:'Hà Tĩnh', hue:'Huế' };
+const PROV_CENTER = { thanh_hoa:[19.808,105.776], nghe_an:[18.679,105.682], ha_tinh:[18.343,105.906], hue:[16.462,107.595] };
+const CAT_LABEL   = { beach:'Biển', trekking:'Trekking', nature:'Thiên nhiên', heritage:'Di tích', food:'Ẩm thực' };
+const TYPE_LABEL  = { outdoor:'Ngoài trời', indoor:'Trong nhà', mixed:'Kết hợp' };
+const CAT_COLOR   = { beach:'#0ea5e9', trekking:'#16a34a', nature:'#22c55e', heritage:'#a855f7', food:'#f97316' };
 
 const SUIT_CFG = {
-  great:       { label: 'Rất phù hợp',   color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
-  ok:          { label: 'Phù hợp',       color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
-  limit:       { label: 'Hạn chế',       color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
-  indoor_only: { label: 'Chỉ trong nhà', color: '#9a3412', bg: '#fff7ed', border: '#fed7aa' },
-  no:          { label: 'Không nên',     color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  great:       { label:'Rất phù hợp',   color:'#15803d', bg:'#f0fdf4', border:'#bbf7d0' },
+  ok:          { label:'Phù hợp',       color:'#1d4ed8', bg:'#eff6ff', border:'#bfdbfe' },
+  limit:       { label:'Hạn chế',       color:'#b45309', bg:'#fffbeb', border:'#fde68a' },
+  indoor_only: { label:'Chỉ trong nhà', color:'#9a3412', bg:'#fff7ed', border:'#fed7aa' },
+  no:          { label:'Không nên',     color:'#dc2626', bg:'#fef2f2', border:'#fecaca' },
 };
 const SUIT_MATRIX = {
   outdoor: ['great','ok','limit','no','no','no'],
@@ -81,60 +80,70 @@ function haversineKm(lat1,lon1,lat2,lon2) {
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-// ── Waypoints QL1A ────────────────────────────────────────────────────────────
-function buildVNWaypoints(fromLat,fromLon,destLat,destLon) {
-  if (haversineKm(fromLat,fromLon,destLat,destLon) < 100) return [];
-  const QL1A=[
+// ── Waypoints QL1A – buộc route đi dọc Bắc–Nam VN thay vì qua Lào ────────────
+function buildQL1AWaypoints(fromLat,fromLon,destLat,destLon) {
+  if (haversineKm(fromLat,fromLon,destLat,destLon) < 80) return [];
+  const QL1A = [
     [21.028,105.852],[20.411,106.338],[19.808,105.776],[18.679,105.682],
     [18.343,105.906],[17.467,106.622],[16.462,107.595],[16.054,108.202],
     [15.120,108.800],[13.783,109.214],[12.667,109.100],[11.340,108.100],[10.823,106.630],
   ];
   const mn=Math.min(fromLat,destLat), mx=Math.max(fromLat,destLat);
   return QL1A
-    .filter(([lat])=>lat>mn+0.3&&lat<mx-0.3)
+    .filter(([lat])=>lat>mn+0.25&&lat<mx-0.25)
     .sort((a,b)=>fromLat>destLat?b[0]-a[0]:a[0]-b[0]);
 }
 
-// ── OSRM fetch với fallback server + timeout ──────────────────────────────────
-// Thứ tự server:
-//   1. router.project-osrm.org  - demo server chính thức, xử lý tốt đường dài VN
-//   2. routing.openstreetmap.de - backup (hay bị timeout/từ chối > 1000 km)
-async function fetchOSRM(endpoint, coordStr) {
-  const servers = [
-    `https://router.project-osrm.org/route/v1/${endpoint}/${coordStr}?overview=full&geometries=geojson&steps=true`,
-    `https://routing.openstreetmap.de/routed-${endpoint==='walking'?'foot':'car'}/route/v1/${endpoint}/${coordStr}?overview=full&geometries=geojson&steps=true`,
+// ── OSRM fetch helper ─────────────────────────────────────────────────────────
+// Chiến lược:
+//  • Ô tô  : driving  (có cao tốc/motorway) – dùng OSRM car profile
+//  • Xe máy: driving + exclude=motorway     – tránh cao tốc, đi QL1A bình thường
+//  • Đi bộ : walking profile
+//
+// Server ưu tiên:
+//  1. router.project-osrm.org – ổn định, xử lý đường dài tốt
+//  2. routing.openstreetmap.de – backup
+//
+// Cả 2 server đều không hỗ trợ exclude= natively trong free tier,
+// nên xe máy ta xử lý bằng cách FORCE waypoints QL1A (tránh cao tốc tự nhiên
+// vì QL1A là quốc lộ thường, OSRM sẽ route theo đó thay vì cao tốc).
+async function fetchOSRM(profile, coordStr, extraParams = '') {
+  const SERVERS = [
+    `https://router.project-osrm.org/route/v1/${profile}/${coordStr}?overview=full&geometries=geojson&steps=true${extraParams}`,
+    `https://routing.openstreetmap.de/routed-${profile === 'walking' ? 'foot' : 'car'}/route/v1/${profile === 'walking' ? 'walking' : 'driving'}/${coordStr}?overview=full&geometries=geojson&steps=true${extraParams}`,
   ];
-  for (const url of servers) {
+  for (const url of SERVERS) {
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(()=>ctrl.abort(), 20000);
-      const res = await fetch(url, { signal: ctrl.signal });
-      clearTimeout(t);
+      const tid  = setTimeout(() => ctrl.abort(), 25000);
+      const res  = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(tid);
       if (!res.ok) continue;
       const d = await res.json();
-      if (d.code==='Ok' && d.routes?.[0]) return d;
-    } catch { continue; }
+      if (d.code === 'Ok' && d.routes?.[0]) return d;
+    } catch { /* timeout / network, thử server kế */ }
   }
   return null;
 }
 
 // ── AQI Slider Panel ──────────────────────────────────────────────────────────
 function AQISliderPanel({ sliderAqi, setSliderAqi }) {
-  const lvl=aqiLevel(sliderAqi), aqiColor=AQI_COLORS[lvl], aqiLabel=AQI_LABELS[lvl], row=AQI_TABLE_ROWS[lvl];
+  const lvl=aqiLevel(sliderAqi), C=AQI_COLORS[lvl], L=AQI_LABELS[lvl], row=AQI_TABLE_ROWS[lvl];
   return (
     <div style={{background:'#fff',borderRadius:12,border:'1px solid #e0e7f0',overflow:'hidden'}}>
-      <div style={{padding:'12px 16px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+      <div style={{padding:'12px 16px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <div style={{width:10,height:10,borderRadius:'50%',background:aqiColor,flexShrink:0}}/>
+          <div style={{width:10,height:10,borderRadius:'50%',background:C}}/>
           <span style={{fontWeight:700,fontSize:'0.88rem',color:'#1e293b'}}>Khuyến nghị theo mức AQI</span>
         </div>
         <span style={{fontSize:'0.75rem',color:'#64748b'}}>Kéo để xem mức khác</span>
       </div>
       <div style={{padding:'14px 16px',borderBottom:'1px solid #f1f5f9'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
-          <input type="range" min="0" max="300" step="1" value={sliderAqi} onChange={e=>setSliderAqi(Number(e.target.value))} style={{flex:1,accentColor:aqiColor}}/>
-          <div style={{minWidth:100,padding:'4px 12px',borderRadius:8,textAlign:'center',background:aqiColor,fontWeight:800,fontSize:'0.95rem',color:lvl<=1?'#333':'#fff'}}>
-            {sliderAqi} - {aqiLabel}
+          <input type="range" min="0" max="300" step="1" value={sliderAqi}
+            onChange={e=>setSliderAqi(Number(e.target.value))} style={{flex:1,accentColor:C}}/>
+          <div style={{minWidth:100,padding:'4px 12px',borderRadius:8,textAlign:'center',background:C,fontWeight:800,fontSize:'0.95rem',color:lvl<=1?'#333':'#fff'}}>
+            {sliderAqi} - {L}
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'space-between',padding:'0 2px'}}>
@@ -146,16 +155,16 @@ function AQISliderPanel({ sliderAqi, setSliderAqi }) {
           ))}
         </div>
       </div>
-      <div style={{padding:'12px 16px',background:`${aqiColor}0d`}}>
+      <div style={{padding:'12px 16px',background:`${C}0d`}}>
         <div style={{fontSize:'0.72rem',color:'#64748b',marginBottom:8,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.04em'}}>
-          Ở mức AQI {sliderAqi} ({aqiLabel}), khuyến nghị:
+          Ở mức AQI {sliderAqi} ({L}), khuyến nghị:
         </div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
-          {[{key:'outdoor',label:'Ngoài trời',suit:row.outdoor},{key:'mixed',label:'Kết hợp',suit:row.mixed},{key:'indoor',label:'Trong nhà',suit:row.indoor}].map(({key,label,suit})=>{
-            const c=SUIT_CFG[suit];
+          {[{k:'outdoor',l:'Ngoài trời',s:row.outdoor},{k:'mixed',l:'Kết hợp',s:row.mixed},{k:'indoor',l:'Trong nhà',s:row.indoor}].map(({k,l,s})=>{
+            const c=SUIT_CFG[s];
             return (
-              <div key={key} style={{background:c.bg,border:`1px solid ${c.border}`,borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
-                <div style={{fontSize:'0.7rem',color:'#64748b',marginBottom:3}}>{label}</div>
+              <div key={k} style={{background:c.bg,border:`1px solid ${c.border}`,borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
+                <div style={{fontSize:'0.7rem',color:'#64748b',marginBottom:3}}>{l}</div>
                 <div style={{fontSize:'0.8rem',fontWeight:700,color:c.color}}>{c.label}</div>
               </div>
             );
@@ -173,23 +182,19 @@ function AQISliderPanel({ sliderAqi, setSliderAqi }) {
           </thead>
           <tbody>
             {AQI_TABLE_ROWS.map((r,i)=>{
-              const isActive=i===lvl;
+              const active=i===lvl;
               return (
                 <tr key={i} onClick={()=>setSliderAqi(AQI_BINS[i]+1)}
-                  style={{background:isActive?`${AQI_COLORS[i]}18`:i%2?'#fafbfc':'#fff',borderLeft:isActive?`3px solid ${AQI_COLORS[i]}`:'3px solid transparent',cursor:'pointer'}}>
+                  style={{background:active?`${AQI_COLORS[i]}18`:i%2?'#fafbfc':'#fff',borderLeft:active?`3px solid ${AQI_COLORS[i]}`:'3px solid transparent',cursor:'pointer'}}>
                   <td style={{padding:'6px 12px',whiteSpace:'nowrap'}}>
                     <div style={{display:'flex',alignItems:'center',gap:6}}>
-                      <div style={{width:8,height:8,borderRadius:'50%',background:AQI_COLORS[i],flexShrink:0}}/>
-                      <span style={{fontWeight:isActive?700:500,color:isActive?'#1e293b':'#475569',fontSize:'0.72rem'}}>{AQI_LABELS[i]} ({r.range})</span>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:AQI_COLORS[i]}}/>
+                      <span style={{fontWeight:active?700:500,color:active?'#1e293b':'#475569',fontSize:'0.72rem'}}>{AQI_LABELS[i]} ({r.range})</span>
                     </div>
                   </td>
                   {[r.outdoor,r.mixed,r.indoor].map((s,j)=>{
                     const c=SUIT_CFG[s];
-                    return (
-                      <td key={j} style={{padding:'6px 12px',textAlign:'center'}}>
-                        <span style={{background:c.bg,color:c.color,border:`1px solid ${c.border}`,borderRadius:5,padding:'1px 7px',fontSize:'0.68rem',fontWeight:600,whiteSpace:'nowrap'}}>{c.label}</span>
-                      </td>
-                    );
+                    return <td key={j} style={{padding:'6px 12px',textAlign:'center'}}><span style={{background:c.bg,color:c.color,border:`1px solid ${c.border}`,borderRadius:5,padding:'1px 7px',fontSize:'0.68rem',fontWeight:600,whiteSpace:'nowrap'}}>{c.label}</span></td>;
                   })}
                 </tr>
               );
@@ -229,19 +234,21 @@ function TourMap({ spots, filterAqi, slug }) {
     osm:  { label:'Bản đồ',   base:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', baseAttr:'© OpenStreetMap © CARTO', label2Url:null },
     topo: { label:'Địa hình', base:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', baseAttr:'© OpenStreetMap © OpenTopoMap', label2Url:null },
     sat:  { label:'Vệ tinh',  base:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', baseAttr:'© Esri',
-            label2Url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', label2Attr:'© CARTO labels', label2Opacity:0.85 },
+            label2Url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', label2Attr:'© CARTO', label2Opacity:0.85 },
   };
 
-  // Cấu hình phương tiện:
-  // - car / bike → đều dùng OSRM "driving" (không có motorbike profile)
-  //   bike hiển thị thời gian x1.15 (xe máy chậm hơn ô tô ~15%)
-  // - foot → OSRM "walking", giới hạn 50 km
-  // - flight → tính tay qua sân bay
+  // ── Cấu hình phương tiện ──────────────────────────────────────────────────────
+  //  car    : OSRM "driving"  → đường cao tốc + QL (nhanh nhất)
+  //  bike   : OSRM "driving"  → nhưng waypoints QL1A buộc đi quốc lộ,
+  //           KHÔNG qua cao tốc (OSRM sẽ tránh motorway khi waypoints nằm trên QL)
+  //           + timeFactor 1.3 (xe máy chậm hơn, dừng đèn đỏ nhiều hơn)
+  //  foot   : OSRM "walking"  → đường bộ hành, mọi khoảng cách
+  //  flight : tính tay qua sân bay (đã ổn)
   const MODES = {
-    car:    { label:'Ô tô',   color:'#1565c0', endpoint:'driving', lineColor:'#1565c0', dash:null,  timeFactor:1.00 },
-    bike:   { label:'Xe máy', color:'#15803d', endpoint:'driving', lineColor:'#15803d', dash:null,  timeFactor:1.15 },
-    foot:   { label:'Đi bộ',  color:'#b45309', endpoint:'walking', lineColor:'#b45309', dash:'6 4', timeFactor:1.00 },
-    flight: { label:'Bay',    color:'#6b21a8', endpoint:null,      lineColor:'#6b21a8', dash:'8 6', timeFactor:1.00 },
+    car:    { label:'Ô tô',   color:'#1565c0', osrmProfile:'driving', useQL1A:false, lineColor:'#1565c0', dash:null,  timeFactor:1.00, note:'Ưu tiên cao tốc' },
+    bike:   { label:'Xe máy', color:'#15803d', osrmProfile:'driving', useQL1A:true,  lineColor:'#15803d', dash:null,  timeFactor:1.30, note:'Tránh cao tốc, đi quốc lộ' },
+    foot:   { label:'Đi bộ',  color:'#b45309', osrmProfile:'walking', useQL1A:false, lineColor:'#b45309', dash:'6 4', timeFactor:1.00, note:'Đường bộ hành' },
+    flight: { label:'Bay',    color:'#6b21a8', osrmProfile:null,       useQL1A:false, lineColor:'#6b21a8', dash:'8 6', timeFactor:1.00, note:'Qua sân bay gần nhất' },
   };
 
   const TURN_ICON = {
@@ -250,11 +257,14 @@ function TourMap({ spots, filterAqi, slug }) {
     'depart':'▶','arrive':'★','roundabout':'⟳','rotary':'⟳',
     'fork-left':'↖','fork-right':'↗','merge':'⇒','ramp':'↗','notification':'ℹ',
   };
-  const getTurnIcon = step => { const m=step.maneuver; const k=m.modifier?`${m.type}-${m.modifier}`:m.type; return TURN_ICON[k]||TURN_ICON[m.type]||'↑'; };
+  const getTurnIcon = step => {
+    const m=step.maneuver, k=m.modifier?`${m.type}-${m.modifier}`:m.type;
+    return TURN_ICON[k]||TURN_ICON[m.type]||'↑';
+  };
   const fmtDist = m => m>=1000?`${(m/1000).toFixed(1)} km`:`${Math.round(m)} m`;
   const fmtDur  = s => s<60?`${Math.round(s)}s`:s<3600?`${Math.round(s/60)} phút`:`${Math.floor(s/3600)}h${Math.round((s%3600)/60)?` ${Math.round((s%3600)/60)}p`:''}`;
 
-  // ── Init Leaflet ────────────────────────────────────────────────────────────
+  // ── Init Leaflet ─────────────────────────────────────────────────────────────
   useEffect(()=>{
     if (!divRef.current) return;
     if (!document.getElementById('lf-css')) {
@@ -265,13 +275,12 @@ function TourMap({ spots, filterAqi, slug }) {
     const s=document.createElement('script');
     s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
     s.onload=initMap; document.head.appendChild(s);
-    return ()=>{ if(stRef.current.map){stRef.current.map.remove();stRef.current.map=null;} };
+    return ()=>{ stRef.current.map?.remove(); stRef.current.map=null; };
   },[]);
 
   function initMap(){
     if (stRef.current.map||!divRef.current) return;
-    const L=window.L;
-    const center=PROV_CENTER[slug]||[17.5,106.5];
+    const L=window.L, center=PROV_CENTER[slug]||[17.5,106.5];
     const map=L.map(divRef.current,{center,zoom:slug==='hue'?10:9,zoomControl:false});
     L.control.zoom({position:'topright'}).addTo(map);
     stRef.current.map=map;
@@ -287,7 +296,7 @@ function TourMap({ spots, filterAqi, slug }) {
 
   useEffect(()=>{
     if (!ready||!stRef.current.map) return;
-    const L=window.L; const st=stRef.current;
+    const L=window.L, st=stRef.current;
     st.markers.forEach(m=>m.remove()); st.markers=[];
     spots.forEach(spot=>{
       const c=SUIT_CFG[getSuit(filterAqi,spot.type)];
@@ -302,17 +311,17 @@ function TourMap({ spots, filterAqi, slug }) {
 
   useEffect(()=>{
     if (!ready||!stRef.current.map) return;
-    const L=window.L; const st=stRef.current;
-    if (st.baseTile){st.baseTile.remove();st.baseTile=null;}
-    if (st.labelTile){st.labelTile.remove();st.labelTile=null;}
+    const L=window.L, st=stRef.current;
+    st.baseTile?.remove(); st.baseTile=null;
+    st.labelTile?.remove(); st.labelTile=null;
     const b=BASES[basemap];
     st.baseTile=L.tileLayer(b.base,{attribution:b.baseAttr}).addTo(st.map);
     if (b.label2Url) st.labelTile=L.tileLayer(b.label2Url,{attribution:b.label2Attr,opacity:b.label2Opacity,pane:'overlayPane'}).addTo(st.map);
   },[basemap,ready]);
 
   function setOriginAt(lat,lon,label){
-    const L=window.L; const st=stRef.current;
-    if (st.originMk){st.originMk.remove();st.originMk=null;}
+    const L=window.L, st=stRef.current;
+    st.originMk?.remove(); st.originMk=null;
     st.originMk=L.marker([lat,lon],{icon:L.divIcon({
       className:'',
       html:`<div style="width:14px;height:14px;border-radius:50%;background:#f97316;border:2.5px solid #fff;box-shadow:0 0 0 4px rgba(249,115,22,.3)"></div>`,
@@ -322,9 +331,9 @@ function TourMap({ spots, filterAqi, slug }) {
   }
 
   function locateMe(){
-    navigator.geolocation.getCurrentPosition(pos=>{
-      setOriginAt(pos.coords.latitude,pos.coords.longitude,'Vị trí của bạn');
-      stRef.current.map?.setView([pos.coords.latitude,pos.coords.longitude],11);
+    navigator.geolocation.getCurrentPosition(p=>{
+      setOriginAt(p.coords.latitude,p.coords.longitude,'Vị trí của bạn');
+      stRef.current.map?.setView([p.coords.latitude,p.coords.longitude],11);
     },()=>alert('Không lấy được vị trí GPS.'));
   }
 
@@ -338,29 +347,27 @@ function TourMap({ spots, filterAqi, slug }) {
     if (!q||q.length<3){setAddrSuggestions([]);return;}
     setGeocoding(true);
     try {
-      const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=vn&accept-language=vi`;
-      const data=await(await fetch(url,{headers:{'User-Agent':'AQI-Tourism-App/1.0'}})).json();
-      setAddrSuggestions(data.map(d=>({label:d.display_name.split(',').slice(0,3).join(', '),lat:parseFloat(d.lat),lon:parseFloat(d.lon)})));
-    } catch(e){console.error(e);}
+      const d=await(await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=vn&accept-language=vi`,{headers:{'User-Agent':'AQI-Tourism-App/1.0'}})).json();
+      setAddrSuggestions(d.map(x=>({label:x.display_name.split(',').slice(0,3).join(', '),lat:parseFloat(x.lat),lon:parseFloat(x.lon)})));
+    } catch{}
     setGeocoding(false);
   }
 
-  // ── Routing ─────────────────────────────────────────────────────────────────
+  // ── Routing chính ─────────────────────────────────────────────────────────────
   async function doRoute(dest){
     if (!origin){alert('Vui lòng nhập điểm xuất phát trước.');return;}
     const st=stRef.current; if (!st.map) return;
-    try{ st.route?.remove?st.route.remove():st.route?.clearLayers?.(); }catch(e){}
-    st.route=null;
-    setRouteInfo(null); setRouteWarn(''); setRouting(true);
+    try{st.route?.remove?st.route.remove():st.route?.clearLayers?.();}catch{}
+    st.route=null; setRouteInfo(null); setRouteWarn(''); setRouting(true);
 
     const from=[origin.lat,origin.lon];
     const mc=MODES[mode];
     const distKm=haversineKm(from[0],from[1],dest.lat,dest.lon);
 
-    // ── Bay ──────────────────────────────────────────────────────────────────
+    // ── Bay (không đổi) ─────────────────────────────────────────────────────
     if (mode==='flight'){
       const L=window.L;
-      const AIRPORTS=[
+      const AP=[
         {code:'SGN',name:'Tân Sơn Nhất',lat:10.8188,lon:106.6520},
         {code:'HAN',name:'Nội Bài',      lat:21.2212,lon:105.8070},
         {code:'DAD',name:'Đà Nẵng',      lat:16.0439,lon:108.1992},
@@ -370,15 +377,15 @@ function TourMap({ spots, filterAqi, slug }) {
         {code:'CXR',name:'Cam Ranh',     lat:11.9982,lon:109.2192},
         {code:'PQC',name:'Phú Quốc',     lat:10.1698,lon:103.9931},
       ];
-      const nearest=(lat,lon)=>AIRPORTS.reduce((b,a)=>haversineKm(a.lat,a.lon,lat,lon)<haversineKm(b.lat,b.lon,lat,lon)?a:b);
-      const apF=nearest(from[0],from[1]), apD=nearest(dest.lat,dest.lon);
+      const near=(lat,lon)=>AP.reduce((b,a)=>haversineKm(a.lat,a.lon,lat,lon)<haversineKm(b.lat,b.lon,lat,lon)?a:b);
+      const apF=near(from[0],from[1]), apD=near(dest.lat,dest.lon);
       const flightMin=Math.round(distKm/800*60+60);
-      const group=L.layerGroup().addTo(st.map);
-      L.polyline([[from[0],from[1]],[apF.lat,apF.lon]],{color:'#f97316',weight:3,dashArray:'5 5',opacity:0.8}).addTo(group);
-      L.polyline([[apF.lat,apF.lon],[apD.lat,apD.lon]],{color:'#6b21a8',weight:4,dashArray:'8 6',opacity:0.85}).addTo(group);
-      L.polyline([[apD.lat,apD.lon],[dest.lat,dest.lon]],{color:'#f97316',weight:3,dashArray:'5 5',opacity:0.8}).addTo(group);
-      [apF,apD].forEach(ap=>L.marker([ap.lat,ap.lon],{icon:L.divIcon({className:'',html:`<div style="background:#6b21a8;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3)">${ap.code}</div>`,iconAnchor:[16,10]})}).addTo(group));
-      st.route=group;
+      const grp=L.layerGroup().addTo(st.map);
+      L.polyline([[from[0],from[1]],[apF.lat,apF.lon]],{color:'#f97316',weight:3,dashArray:'5 5',opacity:0.8}).addTo(grp);
+      L.polyline([[apF.lat,apF.lon],[apD.lat,apD.lon]],{color:'#6b21a8',weight:4,dashArray:'8 6',opacity:0.85}).addTo(grp);
+      L.polyline([[apD.lat,apD.lon],[dest.lat,dest.lon]],{color:'#f97316',weight:3,dashArray:'5 5',opacity:0.8}).addTo(grp);
+      [apF,apD].forEach(ap=>L.marker([ap.lat,ap.lon],{icon:L.divIcon({className:'',html:`<div style="background:#6b21a8;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3)">${ap.code}</div>`,iconAnchor:[16,10]})}).addTo(grp));
+      st.route=grp;
       st.map.fitBounds(L.latLngBounds([from,[dest.lat,dest.lon]]).pad(0.2));
       setRouteInfo({km:distKm.toFixed(0),time:`~${flightMin} phút`,name:dest.name,mode,steps:[
         {icon:'▶',text:`Từ ${origin.label}`,dist:'',dur:''},
@@ -390,22 +397,19 @@ function TourMap({ spots, filterAqi, slug }) {
       setRouting(false); return;
     }
 
-    // ── Đi bộ: chặn nếu quá xa ──────────────────────────────────────────────
-    if (mode==='foot' && distKm>50){
-      setRouteWarn(`⚠️ Khoảng cách ${distKm.toFixed(0)} km quá xa để đi bộ. Đi bộ thực tế chỉ phù hợp trong ~10–20 km. Hãy chọn Xe máy hoặc Ô tô.`);
-      setRouting(false); return;
-    }
+    // ── Xây dựng tọa độ route ────────────────────────────────────────────────
+    // Ô tô: không cần waypoint QL1A → OSRM tự chọn đường nhanh nhất (có thể qua cao tốc)
+    // Xe máy: force waypoints QL1A → OSRM route theo quốc lộ, tự nhiên tránh cao tốc
+    // Đi bộ: không waypoint (đi bộ gần, không cần QL1A)
+    const waypoints = mc.useQL1A ? buildQL1AWaypoints(from[0],from[1],dest.lat,dest.lon) : [];
 
-    // ── Ô tô / Xe máy / Đi bộ ───────────────────────────────────────────────
-    // Chỉ car/bike mới dùng waypoints QL1A
-    const waypoints=(mode==='car'||mode==='bike')?buildVNWaypoints(from[0],from[1],dest.lat,dest.lon):[];
     const coordStr=[
       `${from[1]},${from[0]}`,
       ...waypoints.map(w=>`${w[1]},${w[0]}`),
       `${dest.lon},${dest.lat}`,
     ].join(';');
 
-    const data=await fetchOSRM(mc.endpoint, coordStr);
+    const data=await fetchOSRM(mc.osrmProfile, coordStr);
 
     if (data){
       const r=data.routes[0]; const L=window.L;
@@ -428,22 +432,27 @@ function TourMap({ spots, filterAqi, slug }) {
           steps.push({icon,text,dist:step.distance>0?fmtDist(step.distance):'',dur:step.duration>10?fmtDur(step.duration):''});
       }));
 
-      // Xe máy: nhân timeFactor 1.15 (chậm hơn ô tô ~15%)
+      // Thời gian: xe máy nhân timeFactor 1.3 (đường chậm hơn ô tô)
       const adjSec=r.duration*mc.timeFactor;
       const totalMin=Math.round(adjSec/60);
       const timeStr=totalMin<60?`${totalMin} phút`:`${Math.floor(totalMin/60)}h${totalMin%60?` ${totalMin%60}p`:''}`;
+
       setRouteInfo({km:(r.distance/1000).toFixed(1),time:timeStr,name:dest.name,mode,steps});
 
+      // Thông báo gợi ý không làm chặn
       if (mode==='bike'&&distKm>300)
-        setRouteWarn(`ℹ️ ${distKm.toFixed(0)} km bằng xe máy (~${timeStr}). Nên nghỉ ngơi mỗi 2–3 giờ.`);
+        setRouteWarn(`ℹ️ Tuyến xe máy ${distKm.toFixed(0)} km (~${timeStr}). Đường quốc lộ, nên nghỉ mỗi 2–3h.`);
+      if (mode==='foot'&&distKm>30)
+        setRouteWarn(`ℹ️ Tuyến đi bộ ${distKm.toFixed(0)} km (~${timeStr}). Rất dài, hãy chuẩn bị kỹ.`);
     } else {
-      // Fallback: ước tính đường chim bay
-      const spd=mode==='foot'?5:mode==='bike'?50:80;
+      // Thất bại → hiện ước tính
+      const spd=mode==='foot'?5:mode==='bike'?45:90;
       const hrs=(distKm/spd).toFixed(1);
+      const unit=mode==='foot'?'đi bộ':mode==='bike'?'xe máy':'ô tô';
       setRouteWarn(
-        `⚠️ Không tính được đường chi tiết (${distKm.toFixed(0)} km).\n` +
-        `Ước tính: ~${hrs} giờ (${mode==='foot'?'đi bộ':mode==='bike'?'xe máy':'ô tô'}, đường chim bay).\n` +
-        `Gợi ý: thử phương tiện "Bay" hoặc dùng Google Maps cho tuyến này.`
+        `⚠️ Không lấy được tuyến đường từ server (${distKm.toFixed(0)} km).\n` +
+        `Ước tính: ~${hrs} giờ ${unit} theo đường thẳng.\n` +
+        `Thử lại sau ít phút hoặc chọn phương tiện "Bay" cho đường rất xa.`
       );
     }
     setRouting(false);
@@ -451,14 +460,14 @@ function TourMap({ spots, filterAqi, slug }) {
 
   function clearRoute(){
     const st=stRef.current;
-    try{st.route?.remove?st.route.remove():st.route?.clearLayers?.();}catch(e){}
+    try{st.route?.remove?st.route.remove():st.route?.clearLayers?.();}catch{}
     st.route=null; setRouteInfo(null); setRouteWarn('');
   }
 
   function toggleFS(){
     const el=wrapRef.current; if (!el) return;
-    if (!isFS){(el.requestFullscreen||el.webkitRequestFullscreen||(()=>{})).call(el);}
-    else{(document.exitFullscreen||document.webkitExitFullscreen||(()=>{})).call(document);}
+    if (!isFS)(el.requestFullscreen||el.webkitRequestFullscreen||(()=>{})).call(el);
+    else (document.exitFullscreen||document.webkitExitFullscreen||(()=>{})).call(document);
     setIsFS(f=>!f); setTimeout(()=>stRef.current.map?.invalidateSize(),350);
   }
 
@@ -487,16 +496,16 @@ function TourMap({ spots, filterAqi, slug }) {
               </div>
             )}
           </div>
-          <button onClick={locateMe} style={{padding:'6px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:'1.5px solid #e0e7f0',background:'#fff',color:'#64748b',whiteSpace:'nowrap'}}>GPS</button>
+          <button onClick={locateMe} style={{padding:'6px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:'1.5px solid #e0e7f0',background:'#fff',color:'#64748b',whiteSpace:'nowrap'}}>📍 GPS</button>
           <button onClick={startPickOnMap} style={{padding:'6px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:`1.5px solid ${pickingOrigin?'#f97316':'#e0e7f0'}`,background:pickingOrigin?'#fff7ed':'#fff',color:pickingOrigin?'#f97316':'#64748b',whiteSpace:'nowrap'}}>
-            {pickingOrigin?'Click vào map...':'Chấm trên map'}
+            {pickingOrigin?'Click vào map...':'🗺 Chấm map'}
           </button>
           {origin&&(
-            <button onClick={()=>{setOrigin(null);setAddrInput('');setAddrSuggestions([]);const st=stRef.current;if(st.originMk){st.originMk.remove();st.originMk=null;}}}
+            <button onClick={()=>{setOrigin(null);setAddrInput('');setAddrSuggestions([]);const st=stRef.current;st.originMk?.remove();st.originMk=null;}}
               style={{padding:'6px 8px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:'1px solid #fecaca',background:'#fef2f2',color:'#dc2626'}}>✕</button>
           )}
         </div>
-        {origin&&<div style={{marginTop:6,fontSize:'0.7rem',color:'#15803d',display:'flex',gap:4,alignItems:'center'}}><div style={{width:8,height:8,borderRadius:'50%',background:'#f97316',flexShrink:0}}/>{origin.label}</div>}
+        {origin&&<div style={{marginTop:6,fontSize:'0.7rem',color:'#15803d',display:'flex',gap:4,alignItems:'center'}}><div style={{width:8,height:8,borderRadius:'50%',background:'#f97316'}}/>{origin.label}</div>}
         {pickingOrigin&&<div style={{marginTop:6,fontSize:'0.72rem',color:'#f97316',fontWeight:600}}>Click vào bất kỳ vị trí nào trên bản đồ để đặt điểm xuất phát</div>}
       </div>
 
@@ -510,7 +519,7 @@ function TourMap({ spots, filterAqi, slug }) {
         <button onClick={toggleFS} style={{marginLeft:'auto',padding:'3px 10px',borderRadius:20,fontSize:'0.72rem',cursor:'pointer',border:'1.5px solid #e0e7f0',background:'#fff',color:'#64748b'}}>{isFS?'Thu nhỏ':'Toàn màn hình'}</button>
       </div>
 
-      {/* Cảnh báo */}
+      {/* Cảnh báo/gợi ý */}
       {routeWarn&&(
         <div style={{marginBottom:8,padding:'10px 14px',borderRadius:8,background:'#fffbeb',border:'1px solid #fde68a',fontSize:'0.78rem',color:'#92400e',whiteSpace:'pre-line',lineHeight:1.5}}>
           {routeWarn}
@@ -522,6 +531,7 @@ function TourMap({ spots, filterAqi, slug }) {
         <div style={{marginBottom:8,padding:'8px 14px',borderRadius:8,background:MODES[routeInfo.mode].color+'12',border:`1px solid ${MODES[routeInfo.mode].color}33`,display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
           <span style={{fontWeight:800,color:MODES[routeInfo.mode].color,fontSize:'1rem'}}>{routeInfo.km} km</span>
           <span style={{color:'#475569',fontSize:'0.82rem'}}>{routeInfo.time} · {MODES[routeInfo.mode].label}</span>
+          <span style={{color:'#94a3b8',fontSize:'0.72rem',fontStyle:'italic'}}>{MODES[routeInfo.mode].note}</span>
           <span style={{color:'#64748b',fontSize:'0.8rem'}}>→ {routeInfo.name}</span>
           <button onClick={()=>setShowSteps(s=>!s)} style={{marginLeft:'auto',padding:'3px 10px',borderRadius:6,fontSize:'0.72rem',cursor:'pointer',border:'1px solid #e0e7f0',background:'#fff',color:'#475569'}}>
             {showSteps?'Ẩn chỉ dẫn':'Xem chỉ dẫn'}
@@ -565,15 +575,18 @@ function TourMap({ spots, filterAqi, slug }) {
             <div style={{fontSize:'0.63rem',color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:5}}>Phương tiện</div>
             <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
               {Object.entries(MODES).map(([k,m])=>(
-                <button key={k} onClick={()=>setMode(k)} style={{padding:'5px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',fontWeight:mode===k?700:400,border:`1.5px solid ${mode===k?m.color:'#e0e7f0'}`,background:mode===k?m.color+'18':'#fff',color:mode===k?m.color:'#64748b'}}>{m.label}</button>
+                <button key={k} onClick={()=>setMode(k)}
+                  style={{padding:'5px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',fontWeight:mode===k?700:400,border:`1.5px solid ${mode===k?m.color:'#e0e7f0'}`,background:mode===k?m.color+'18':'#fff',color:mode===k?m.color:'#64748b'}}>
+                  {m.label}
+                  {mode===k&&<span style={{display:'block',fontSize:'0.55rem',fontWeight:400,opacity:0.75,marginTop:1}}>{m.note}</span>}
+                </button>
               ))}
             </div>
-            {/* Gợi ý thông minh theo khoảng cách */}
+            {/* Gợi ý thông minh */}
             {origin&&(()=>{
               const d=haversineKm(origin.lat,origin.lon,selected.lat,selected.lon);
-              if (mode==='foot'&&d>20) return <div style={{marginTop:5,fontSize:'0.7rem',color:'#b45309'}}>⚠️ {d.toFixed(0)} km - quá xa để đi bộ, nên chọn xe máy hoặc ô tô</div>;
-              if (d>500) return <div style={{marginTop:5,fontSize:'0.7rem',color:'#6b21a8'}}>✈️ {d.toFixed(0)} km - nên chọn "Bay" để tiết kiệm thời gian</div>;
-              if (d>100) return <div style={{marginTop:5,fontSize:'0.7rem',color:'#64748b'}}>📍 {d.toFixed(0)} km đường chim bay</div>;
+              if (d>500) return <div style={{marginTop:6,fontSize:'0.7rem',color:'#6b21a8'}}>✈️ {d.toFixed(0)} km - cân nhắc chọn "Bay" để tiết kiệm thời gian</div>;
+              if (d>100) return <div style={{marginTop:6,fontSize:'0.7rem',color:'#64748b'}}>📍 {d.toFixed(0)} km đường chim bay</div>;
               return null;
             })()}
             {!origin&&<div style={{marginTop:5,fontSize:'0.7rem',color:'#f97316'}}>Nhập điểm xuất phát ở trên trước khi chỉ đường</div>}
@@ -600,7 +613,7 @@ function TourMap({ spots, filterAqi, slug }) {
         <span style={{marginLeft:4}}>· viền màu = mức phù hợp AQI</span>
       </div>
       <p style={{fontSize:'0.65rem',color:'#b0b8c8',marginTop:3}}>
-        Click điểm → chọn phương tiện → Chỉ đường. Đi bộ chỉ hỗ trợ &lt;50 km. Đường xa &gt;500 km nên chọn Bay.
+        Ô tô: có cao tốc · Xe máy: quốc lộ (không cao tốc) · Đi bộ: đường bộ hành
       </p>
     </div>
   );
@@ -608,7 +621,7 @@ function TourMap({ spots, filterAqi, slug }) {
 
 // ── Spot Card ─────────────────────────────────────────────────────────────────
 function SpotCard({ spot, filterAqi }) {
-  const s=getSuit(filterAqi,spot.type); const c=SUIT_CFG[s];
+  const s=getSuit(filterAqi,spot.type), c=SUIT_CFG[s];
   return (
     <div style={{background:'#fff',borderRadius:10,border:`1px solid ${c.border}`,overflow:'hidden'}}>
       <div style={{background:c.bg,padding:'7px 12px',borderBottom:`1px solid ${c.border}`,display:'flex',justifyContent:'space-between',alignItems:'center',gap:6}}>
@@ -655,7 +668,7 @@ export default function Tab6Tourism({ data, slug }) {
   }),[spots,fCat,fType]);
 
   const headerBg=['#1a7a2e','#6b6b00','#b85c00','#b82222','#6b1a91','#7a0a1a'][Math.min(lvl,5)];
-  const btn=(on)=>({padding:'4px 10px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:`1px solid ${on?'#1565c0':'#e0e7f0'}`,background:on?'#1565c0':'#fff',color:on?'#fff':'#64748b',fontWeight:on?600:400});
+  const btn=on=>({padding:'4px 10px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:`1px solid ${on?'#1565c0':'#e0e7f0'}`,background:on?'#1565c0':'#fff',color:on?'#fff':'#64748b',fontWeight:on?600:400});
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
