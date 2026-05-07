@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AQI_BINS, AQI_LABELS, AQI_COLORS, aqiLevel } from '../constants.js';
 
-// ── Dữ liệu điểm du lịch (tọa độ đã kiểm chứng) ─────────────────────────────
+// ── Dữ liệu điểm du lịch ─────────────────────────────────────────────────────
 const TOURISM_DATA = {
   thanh_hoa: [
     { name: 'Bãi biển Sầm Sơn',     type: 'outdoor', cat: 'beach',    lat: 19.7426, lon: 105.9058, hours: '24/7',        desc: 'Bãi biển dài 9km, tắm biển và thể thao nước' },
@@ -45,12 +45,11 @@ const TOURISM_DATA = {
   ],
 };
 
-const PNAME  = { thanh_hoa: 'Thanh Hóa', nghe_an: 'Nghệ An', ha_tinh: 'Hà Tĩnh', hue: 'Huế' };
+const PNAME       = { thanh_hoa: 'Thanh Hóa', nghe_an: 'Nghệ An', ha_tinh: 'Hà Tĩnh', hue: 'Huế' };
 const PROV_CENTER = { thanh_hoa: [19.808,105.776], nghe_an: [18.679,105.682], ha_tinh: [18.343,105.906], hue: [16.462,107.595] };
-
-const CAT_LABEL = { beach: 'Biển', trekking: 'Trekking', nature: 'Thiên nhiên', heritage: 'Di tích', food: 'Ẩm thực' };
-const TYPE_LABEL = { outdoor: 'Ngoài trời', indoor: 'Trong nhà', mixed: 'Kết hợp' };
-const CAT_COLOR  = { beach: '#0ea5e9', trekking: '#16a34a', nature: '#22c55e', heritage: '#a855f7', food: '#f97316' };
+const CAT_LABEL   = { beach: 'Biển', trekking: 'Trekking', nature: 'Thiên nhiên', heritage: 'Di tích', food: 'Ẩm thực' };
+const TYPE_LABEL  = { outdoor: 'Ngoài trời', indoor: 'Trong nhà', mixed: 'Kết hợp' };
+const CAT_COLOR   = { beach: '#0ea5e9', trekking: '#16a34a', nature: '#22c55e', heritage: '#a855f7', food: '#f97316' };
 
 const SUIT_CFG = {
   great:       { label: 'Rất phù hợp',   color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
@@ -59,137 +58,136 @@ const SUIT_CFG = {
   indoor_only: { label: 'Chỉ trong nhà', color: '#9a3412', bg: '#fff7ed', border: '#fed7aa' },
   no:          { label: 'Không nên',     color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
 };
-
 const SUIT_MATRIX = {
   outdoor: ['great','ok','limit','no','no','no'],
   mixed:   ['great','ok','limit','indoor_only','no','no'],
   indoor:  ['ok','ok','ok','ok','limit','limit'],
 };
+function getSuit(aqi, type) { return (SUIT_MATRIX[type]||[])[aqiLevel(aqi)]||'ok'; }
 
-function getSuit(aqi, type) {
-  return (SUIT_MATRIX[type] || [])[aqiLevel(aqi)] || 'ok';
-}
-
-// ── AQI Slider + dynamic recommendation panel ─────────────────────────────────
 const AQI_TABLE_ROWS = [
-  { range: '0 – 49',   outdoor: 'great',       mixed: 'great',       indoor: 'ok'    },
-  { range: '50 – 99',  outdoor: 'ok',           mixed: 'ok',          indoor: 'ok'    },
-  { range: '100 – 149',outdoor: 'limit',        mixed: 'limit',       indoor: 'ok'    },
-  { range: '150 – 199',outdoor: 'no',           mixed: 'indoor_only', indoor: 'ok'    },
-  { range: '200 – 299',outdoor: 'no',           mixed: 'no',          indoor: 'limit' },
-  { range: '300 – 499',outdoor: 'no',           mixed: 'no',          indoor: 'limit' },
+  { range:'0–49',   outdoor:'great', mixed:'great',       indoor:'ok'    },
+  { range:'50–99',  outdoor:'ok',    mixed:'ok',          indoor:'ok'    },
+  { range:'100–149',outdoor:'limit', mixed:'limit',       indoor:'ok'    },
+  { range:'150–199',outdoor:'no',    mixed:'indoor_only', indoor:'ok'    },
+  { range:'200–299',outdoor:'no',    mixed:'no',          indoor:'limit' },
+  { range:'300–499',outdoor:'no',    mixed:'no',          indoor:'limit' },
 ];
 
+// ── Haversine ─────────────────────────────────────────────────────────────────
+function haversineKm(lat1,lon1,lat2,lon2) {
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ── Waypoints QL1A ────────────────────────────────────────────────────────────
+function buildVNWaypoints(fromLat,fromLon,destLat,destLon) {
+  if (haversineKm(fromLat,fromLon,destLat,destLon) < 100) return [];
+  const QL1A=[
+    [21.028,105.852],[20.411,106.338],[19.808,105.776],[18.679,105.682],
+    [18.343,105.906],[17.467,106.622],[16.462,107.595],[16.054,108.202],
+    [15.120,108.800],[13.783,109.214],[12.667,109.100],[11.340,108.100],[10.823,106.630],
+  ];
+  const mn=Math.min(fromLat,destLat), mx=Math.max(fromLat,destLat);
+  return QL1A
+    .filter(([lat])=>lat>mn+0.3&&lat<mx-0.3)
+    .sort((a,b)=>fromLat>destLat?b[0]-a[0]:a[0]-b[0]);
+}
+
+// ── OSRM fetch với fallback server + timeout ──────────────────────────────────
+// Thứ tự server:
+//   1. router.project-osrm.org  - demo server chính thức, xử lý tốt đường dài VN
+//   2. routing.openstreetmap.de - backup (hay bị timeout/từ chối > 1000 km)
+async function fetchOSRM(endpoint, coordStr) {
+  const servers = [
+    `https://router.project-osrm.org/route/v1/${endpoint}/${coordStr}?overview=full&geometries=geojson&steps=true`,
+    `https://routing.openstreetmap.de/routed-${endpoint==='walking'?'foot':'car'}/route/v1/${endpoint}/${coordStr}?overview=full&geometries=geojson&steps=true`,
+  ];
+  for (const url of servers) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), 20000);
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!res.ok) continue;
+      const d = await res.json();
+      if (d.code==='Ok' && d.routes?.[0]) return d;
+    } catch { continue; }
+  }
+  return null;
+}
+
+// ── AQI Slider Panel ──────────────────────────────────────────────────────────
 function AQISliderPanel({ sliderAqi, setSliderAqi }) {
-  const lvl = aqiLevel(sliderAqi);
-  const aqiColor = AQI_COLORS[lvl];
-  const aqiLabel = AQI_LABELS[lvl];
-  const row = AQI_TABLE_ROWS[lvl];
-
+  const lvl=aqiLevel(sliderAqi), aqiColor=AQI_COLORS[lvl], aqiLabel=AQI_LABELS[lvl], row=AQI_TABLE_ROWS[lvl];
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e0e7f0', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: aqiColor, flexShrink: 0 }} />
-          <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1e293b' }}>
-            Khuyến nghị theo mức AQI
-          </span>
+    <div style={{background:'#fff',borderRadius:12,border:'1px solid #e0e7f0',overflow:'hidden'}}>
+      <div style={{padding:'12px 16px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:10,height:10,borderRadius:'50%',background:aqiColor,flexShrink:0}}/>
+          <span style={{fontWeight:700,fontSize:'0.88rem',color:'#1e293b'}}>Khuyến nghị theo mức AQI</span>
         </div>
-        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Kéo để xem mức khác</span>
+        <span style={{fontSize:'0.75rem',color:'#64748b'}}>Kéo để xem mức khác</span>
       </div>
-
-      {/* Slider */}
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-          <input
-            type="range" min="0" max="300" step="1"
-            value={sliderAqi}
-            onChange={e => setSliderAqi(Number(e.target.value))}
-            style={{ flex: 1, accentColor: aqiColor }}
-          />
-          <div style={{
-            minWidth: 100, padding: '4px 12px', borderRadius: 8, textAlign: 'center',
-            background: aqiColor, fontWeight: 800, fontSize: '0.95rem',
-            color: lvl <= 1 ? '#333' : '#fff',
-          }}>
+      <div style={{padding:'14px 16px',borderBottom:'1px solid #f1f5f9'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+          <input type="range" min="0" max="300" step="1" value={sliderAqi} onChange={e=>setSliderAqi(Number(e.target.value))} style={{flex:1,accentColor:aqiColor}}/>
+          <div style={{minWidth:100,padding:'4px 12px',borderRadius:8,textAlign:'center',background:aqiColor,fontWeight:800,fontSize:'0.95rem',color:lvl<=1?'#333':'#fff'}}>
             {sliderAqi} - {aqiLabel}
           </div>
         </div>
-
-        {/* AQI scale ticks */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
-          {AQI_LABELS.slice(0, 5).map((lbl, i) => (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: AQI_COLORS[i], border: lvl === i ? '2px solid #333' : '1px solid rgba(0,0,0,.1)' }} />
-              <span style={{ fontSize: '0.6rem', color: lvl === i ? '#1e293b' : '#94a3b8', fontWeight: lvl === i ? 700 : 400 }}>{lbl}</span>
+        <div style={{display:'flex',justifyContent:'space-between',padding:'0 2px'}}>
+          {AQI_LABELS.slice(0,5).map((lbl,i)=>(
+            <div key={i} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:AQI_COLORS[i],border:lvl===i?'2px solid #333':'1px solid rgba(0,0,0,.1)'}}/>
+              <span style={{fontSize:'0.6rem',color:lvl===i?'#1e293b':'#94a3b8',fontWeight:lvl===i?700:400}}>{lbl}</span>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Dynamic recommendation row for selected AQI */}
-      <div style={{ padding: '12px 16px', background: `${aqiColor}0d` }}>
-        <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      <div style={{padding:'12px 16px',background:`${aqiColor}0d`}}>
+        <div style={{fontSize:'0.72rem',color:'#64748b',marginBottom:8,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.04em'}}>
           Ở mức AQI {sliderAqi} ({aqiLabel}), khuyến nghị:
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-          {[
-            { key: 'outdoor', label: 'Ngoài trời',  suit: row.outdoor },
-            { key: 'mixed',   label: 'Kết hợp',     suit: row.mixed   },
-            { key: 'indoor',  label: 'Trong nhà',   suit: row.indoor  },
-          ].map(({ key, label, suit }) => {
-            const c = SUIT_CFG[suit];
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+          {[{key:'outdoor',label:'Ngoài trời',suit:row.outdoor},{key:'mixed',label:'Kết hợp',suit:row.mixed},{key:'indoor',label:'Trong nhà',suit:row.indoor}].map(({key,label,suit})=>{
+            const c=SUIT_CFG[suit];
             return (
-              <div key={key} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: 3 }}>{label}</div>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: c.color }}>{c.label}</div>
+              <div key={key} style={{background:c.bg,border:`1px solid ${c.border}`,borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
+                <div style={{fontSize:'0.7rem',color:'#64748b',marginBottom:3}}>{label}</div>
+                <div style={{fontSize:'0.8rem',fontWeight:700,color:c.color}}>{c.label}</div>
               </div>
             );
           })}
         </div>
       </div>
-
-      {/* Full table - collapsed to rows, current level highlighted */}
-      <div style={{ borderTop: '1px solid #f1f5f9' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.76rem' }}>
+      <div style={{borderTop:'1px solid #f1f5f9'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.76rem'}}>
           <thead>
-            <tr style={{ background: '#f8fafd' }}>
-              <th style={{ padding: '7px 12px', textAlign: 'left', color: '#64748b', fontWeight: 700, fontSize: '0.7rem' }}>Mức AQI</th>
-              <th style={{ padding: '7px 12px', textAlign: 'center', color: '#64748b', fontWeight: 700, fontSize: '0.7rem' }}>Ngoài trời</th>
-              <th style={{ padding: '7px 12px', textAlign: 'center', color: '#64748b', fontWeight: 700, fontSize: '0.7rem' }}>Kết hợp</th>
-              <th style={{ padding: '7px 12px', textAlign: 'center', color: '#64748b', fontWeight: 700, fontSize: '0.7rem' }}>Trong nhà</th>
+            <tr style={{background:'#f8fafd'}}>
+              {['Mức AQI','Ngoài trời','Kết hợp','Trong nhà'].map((h,i)=>(
+                <th key={i} style={{padding:'7px 12px',textAlign:i===0?'left':'center',color:'#64748b',fontWeight:700,fontSize:'0.7rem'}}>{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {AQI_TABLE_ROWS.map((r, i) => {
-              const isActive = i === lvl;
+            {AQI_TABLE_ROWS.map((r,i)=>{
+              const isActive=i===lvl;
               return (
-                <tr
-                  key={i}
-                  onClick={() => setSliderAqi(AQI_BINS[i] + 1)}
-                  style={{
-                    background: isActive ? `${AQI_COLORS[i]}18` : i % 2 ? '#fafbfc' : '#fff',
-                    borderLeft: isActive ? `3px solid ${AQI_COLORS[i]}` : '3px solid transparent',
-                    cursor: 'pointer',
-                    transition: 'background 0.1s',
-                  }}
-                >
-                  <td style={{ padding: '6px 12px', whiteSpace: 'nowrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: AQI_COLORS[i], flexShrink: 0 }} />
-                      <span style={{ fontWeight: isActive ? 700 : 500, color: isActive ? '#1e293b' : '#475569', fontSize: '0.72rem' }}>
-                        {AQI_LABELS[i]} ({r.range})
-                      </span>
+                <tr key={i} onClick={()=>setSliderAqi(AQI_BINS[i]+1)}
+                  style={{background:isActive?`${AQI_COLORS[i]}18`:i%2?'#fafbfc':'#fff',borderLeft:isActive?`3px solid ${AQI_COLORS[i]}`:'3px solid transparent',cursor:'pointer'}}>
+                  <td style={{padding:'6px 12px',whiteSpace:'nowrap'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:AQI_COLORS[i],flexShrink:0}}/>
+                      <span style={{fontWeight:isActive?700:500,color:isActive?'#1e293b':'#475569',fontSize:'0.72rem'}}>{AQI_LABELS[i]} ({r.range})</span>
                     </div>
                   </td>
-                  {[r.outdoor, r.mixed, r.indoor].map((s, j) => {
-                    const c = SUIT_CFG[s];
+                  {[r.outdoor,r.mixed,r.indoor].map((s,j)=>{
+                    const c=SUIT_CFG[s];
                     return (
-                      <td key={j} style={{ padding: '6px 12px', textAlign: 'center' }}>
-                        <span style={{ background: c.bg, color: c.color, border: `1px solid ${c.border}`, borderRadius: 5, padding: '1px 7px', fontSize: '0.68rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          {c.label}
-                        </span>
+                      <td key={j} style={{padding:'6px 12px',textAlign:'center'}}>
+                        <span style={{background:c.bg,color:c.color,border:`1px solid ${c.border}`,borderRadius:5,padding:'1px 7px',fontSize:'0.68rem',fontWeight:600,whiteSpace:'nowrap'}}>{c.label}</span>
                       </td>
                     );
                   })}
@@ -198,7 +196,7 @@ function AQISliderPanel({ sliderAqi, setSliderAqi }) {
             })}
           </tbody>
         </table>
-        <div style={{ padding: '6px 12px', fontSize: '0.64rem', color: '#94a3b8', borderTop: '1px solid #f1f5f9' }}>
+        <div style={{padding:'6px 12px',fontSize:'0.64rem',color:'#94a3b8',borderTop:'1px solid #f1f5f9'}}>
           AQI = Air Quality Index · WHO = World Health Organization · QCVN = Quy chuẩn kỹ thuật Quốc gia Việt Nam
         </div>
       </div>
@@ -210,411 +208,317 @@ function AQISliderPanel({ sliderAqi, setSliderAqi }) {
 function TourMap({ spots, filterAqi, slug }) {
   const divRef  = useRef(null);
   const wrapRef = useRef(null);
-  const stRef   = useRef({
-    map: null, markers: [], route: null,
-    baseTile: null, labelTile: null,
-    originMk: null, userMk: null,
-  });
+  const stRef   = useRef({ map:null, markers:[], route:null, baseTile:null, labelTile:null, originMk:null });
 
-  const [selected,      setSelected]      = useState(null);
-  const [routing,       setRouting]       = useState(false);
-  const [routeInfo,     setRouteInfo]     = useState(null);
-  const [origin,        setOrigin]        = useState(null);   // {lat,lon,label}
-  const [basemap,       setBasemap]       = useState('osm');
-  const [ready,         setReady]         = useState(false);
-  const [mode,          setMode]          = useState('car');
-  const [showSteps,     setShowSteps]     = useState(true);
-  const [pickingOrigin, setPickingOrigin] = useState(false);
-  const [addrInput,     setAddrInput]     = useState('');
-  const [geocoding,     setGeocoding]     = useState(false);
-  const [isFS,          setIsFS]          = useState(false);
+  const [selected,        setSelected]        = useState(null);
+  const [routing,         setRouting]         = useState(false);
+  const [routeInfo,       setRouteInfo]       = useState(null);
+  const [routeWarn,       setRouteWarn]       = useState('');
+  const [origin,          setOrigin]          = useState(null);
+  const [basemap,         setBasemap]         = useState('osm');
+  const [ready,           setReady]           = useState(false);
+  const [mode,            setMode]            = useState('car');
+  const [showSteps,       setShowSteps]       = useState(true);
+  const [pickingOrigin,   setPickingOrigin]   = useState(false);
+  const [addrInput,       setAddrInput]       = useState('');
+  const [geocoding,       setGeocoding]       = useState(false);
+  const [isFS,            setIsFS]            = useState(false);
   const [addrSuggestions, setAddrSuggestions] = useState([]);
 
-  // ── Tile config ───────────────────────────────────────────────────────────────
   const BASES = {
-    osm:  { label: 'Bản đồ',
-            base: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-            baseAttr: '© OpenStreetMap © CARTO',
-            label2Url: null },
-    topo: { label: 'Địa hình',
-            base: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-            baseAttr: '© OpenStreetMap © OpenTopoMap',
-            label2Url: null },
-    sat:  { label: 'Vệ tinh',
-            base: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            baseAttr: '© Esri',
-            label2Url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
-            label2Attr: '© CARTO labels', label2Opacity: 0.85 },
+    osm:  { label:'Bản đồ',   base:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', baseAttr:'© OpenStreetMap © CARTO', label2Url:null },
+    topo: { label:'Địa hình', base:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', baseAttr:'© OpenStreetMap © OpenTopoMap', label2Url:null },
+    sat:  { label:'Vệ tinh',  base:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', baseAttr:'© Esri',
+            label2Url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', label2Attr:'© CARTO labels', label2Opacity:0.85 },
   };
 
-  // ── FIX 1: Mỗi phương tiện có profile + endpoint riêng ────────────────────
-  // - car:  routed-car  / driving  → đường lớn, cao tốc
-  // - bike: routed-bike / driving  → đường nhỏ, hẻm, phù hợp xe máy VN
-  // - foot: routed-foot / walking  → đường bộ hành (FIX: trước dùng /driving/ nên lỗi)
-  // - flight: đường thẳng qua sân bay, không dùng OSRM
+  // Cấu hình phương tiện:
+  // - car / bike → đều dùng OSRM "driving" (không có motorbike profile)
+  //   bike hiển thị thời gian x1.15 (xe máy chậm hơn ô tô ~15%)
+  // - foot → OSRM "walking", giới hạn 50 km
+  // - flight → tính tay qua sân bay
   const MODES = {
-    car:    { label: 'Ô tô',   color: '#1565c0', profile: 'routed-car',  endpoint: 'driving', lineColor: '#1565c0', dash: null },
-    bike:   { label: 'Xe máy', color: '#15803d', profile: 'routed-bike', endpoint: 'driving', lineColor: '#15803d', dash: null },
-    foot:   { label: 'Đi bộ',  color: '#b45309', profile: 'routed-foot', endpoint: 'walking', lineColor: '#b45309', dash: '6 4' },
-    flight: { label: 'Bay',     color: '#6b21a8', profile: null,          endpoint: null,      lineColor: '#6b21a8', dash: '8 6' },
+    car:    { label:'Ô tô',   color:'#1565c0', endpoint:'driving', lineColor:'#1565c0', dash:null,  timeFactor:1.00 },
+    bike:   { label:'Xe máy', color:'#15803d', endpoint:'driving', lineColor:'#15803d', dash:null,  timeFactor:1.15 },
+    foot:   { label:'Đi bộ',  color:'#b45309', endpoint:'walking', lineColor:'#b45309', dash:'6 4', timeFactor:1.00 },
+    flight: { label:'Bay',    color:'#6b21a8', endpoint:null,      lineColor:'#6b21a8', dash:'8 6', timeFactor:1.00 },
   };
 
   const TURN_ICON = {
     'turn-left':'↰','turn-right':'↱','turn-slight left':'↖','turn-slight right':'↗',
-    'turn-sharp left':'⟲','turn-sharp right':'⟳',
-    'continue':'↑','straight':'↑','depart':'▶','arrive':'★',
-    'roundabout':'⟳','rotary':'⟳','fork-left':'↖','fork-right':'↗',
-    'merge':'⇒','ramp':'↗','notification':'ℹ',
+    'turn-sharp left':'⟲','turn-sharp right':'⟳','continue':'↑','straight':'↑',
+    'depart':'▶','arrive':'★','roundabout':'⟳','rotary':'⟳',
+    'fork-left':'↖','fork-right':'↗','merge':'⇒','ramp':'↗','notification':'ℹ',
   };
-  const getTurnIcon = step => {
-    const m = step.maneuver;
-    const key = m.modifier ? `${m.type}-${m.modifier}` : m.type;
-    return TURN_ICON[key] || TURN_ICON[m.type] || '↑';
-  };
-  const fmtDist = m => m >= 1000 ? `${(m/1000).toFixed(1)} km` : `${Math.round(m)} m`;
-  const fmtDur  = s => s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.round(s/60)} phút` : `${Math.floor(s/3600)}h${Math.round((s%3600)/60)?` ${Math.round((s%3600)/60)}p`:''}`;
+  const getTurnIcon = step => { const m=step.maneuver; const k=m.modifier?`${m.type}-${m.modifier}`:m.type; return TURN_ICON[k]||TURN_ICON[m.type]||'↑'; };
+  const fmtDist = m => m>=1000?`${(m/1000).toFixed(1)} km`:`${Math.round(m)} m`;
+  const fmtDur  = s => s<60?`${Math.round(s)}s`:s<3600?`${Math.round(s/60)} phút`:`${Math.floor(s/3600)}h${Math.round((s%3600)/60)?` ${Math.round((s%3600)/60)}p`:''}`;
 
-  // ── Init Leaflet ─────────────────────────────────────────────────────────────
-  useEffect(() => {
+  // ── Init Leaflet ────────────────────────────────────────────────────────────
+  useEffect(()=>{
     if (!divRef.current) return;
     if (!document.getElementById('lf-css')) {
-      const l = document.createElement('link'); l.id='lf-css'; l.rel='stylesheet';
+      const l=document.createElement('link'); l.id='lf-css'; l.rel='stylesheet';
       l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(l);
     }
     if (window.L) { initMap(); return; }
-    const s = document.createElement('script');
+    const s=document.createElement('script');
     s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    s.onload = initMap;
-    document.head.appendChild(s);
-    return () => { if (stRef.current.map) { stRef.current.map.remove(); stRef.current.map=null; } };
-  }, []);
+    s.onload=initMap; document.head.appendChild(s);
+    return ()=>{ if(stRef.current.map){stRef.current.map.remove();stRef.current.map=null;} };
+  },[]);
 
-  function initMap() {
-    if (stRef.current.map || !divRef.current) return;
-    const L = window.L;
-    const center = PROV_CENTER[slug] || [17.5, 106.5];
-    const map = L.map(divRef.current, { center, zoom: slug==='hue'?10:9, zoomControl: false });
-    L.control.zoom({ position: 'topright' }).addTo(map);
-    stRef.current.map      = map;
-    stRef.current.baseTile = L.tileLayer(BASES.osm.base, { attribution: BASES.osm.baseAttr }).addTo(map);
-
-    map.on('click', e => {
+  function initMap(){
+    if (stRef.current.map||!divRef.current) return;
+    const L=window.L;
+    const center=PROV_CENTER[slug]||[17.5,106.5];
+    const map=L.map(divRef.current,{center,zoom:slug==='hue'?10:9,zoomControl:false});
+    L.control.zoom({position:'topright'}).addTo(map);
+    stRef.current.map=map;
+    stRef.current.baseTile=L.tileLayer(BASES.osm.base,{attribution:BASES.osm.baseAttr}).addTo(map);
+    map.on('click',e=>{
       if (!stRef.current.pickMode) return;
-      setOriginAt(e.latlng.lat, e.latlng.lng, `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);
-      stRef.current.pickMode = false;
-      setPickingOrigin(false);
-      map.getContainer().style.cursor = '';
+      setOriginAt(e.latlng.lat,e.latlng.lng,`${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);
+      stRef.current.pickMode=false; setPickingOrigin(false);
+      map.getContainer().style.cursor='';
     });
-
     setReady(true);
   }
 
-  // ── Redraw markers khi spots/AQI thay đổi ───────────────────────────────────
-  useEffect(() => {
-    if (!ready || !stRef.current.map) return;
-    const L = window.L; const st = stRef.current;
-    st.markers.forEach(m => m.remove()); st.markers = [];
-    spots.forEach(spot => {
-      const c = SUIT_CFG[getSuit(filterAqi, spot.type)];
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="width:30px;height:30px;border-radius:50%;background:${CAT_COLOR[spot.cat]||'#64748b'};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:13px;outline:3px solid ${c.color};">${{beach:'⬡',trekking:'▲',nature:'◉',heritage:'■',food:'●'}[spot.cat]||'●'}</div>`,
-        iconSize:[30,30], iconAnchor:[15,15],
+  useEffect(()=>{
+    if (!ready||!stRef.current.map) return;
+    const L=window.L; const st=stRef.current;
+    st.markers.forEach(m=>m.remove()); st.markers=[];
+    spots.forEach(spot=>{
+      const c=SUIT_CFG[getSuit(filterAqi,spot.type)];
+      const icon=L.divIcon({
+        className:'',
+        html:`<div style="width:30px;height:30px;border-radius:50%;background:${CAT_COLOR[spot.cat]||'#64748b'};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:13px;outline:3px solid ${c.color};">${{beach:'⬡',trekking:'▲',nature:'◉',heritage:'■',food:'●'}[spot.cat]||'●'}</div>`,
+        iconSize:[30,30],iconAnchor:[15,15],
       });
-      st.markers.push(
-        L.marker([spot.lat,spot.lon],{icon}).addTo(st.map).on('click',()=>{ setSelected(spot); })
-      );
+      st.markers.push(L.marker([spot.lat,spot.lon],{icon}).addTo(st.map).on('click',()=>setSelected(spot)));
     });
-  }, [spots, filterAqi, ready]);
+  },[spots,filterAqi,ready]);
 
-  // ── Đổi basemap ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!ready || !stRef.current.map) return;
-    const L = window.L; const st = stRef.current;
-    if (st.baseTile)  { st.baseTile.remove();  st.baseTile  = null; }
-    if (st.labelTile) { st.labelTile.remove(); st.labelTile = null; }
-    const b = BASES[basemap];
-    st.baseTile = L.tileLayer(b.base, { attribution: b.baseAttr }).addTo(st.map);
-    if (b.label2Url) {
-      st.labelTile = L.tileLayer(b.label2Url, {
-        attribution: b.label2Attr, opacity: b.label2Opacity,
-        pane: 'overlayPane',
-      }).addTo(st.map);
-    }
-  }, [basemap, ready]);
+  useEffect(()=>{
+    if (!ready||!stRef.current.map) return;
+    const L=window.L; const st=stRef.current;
+    if (st.baseTile){st.baseTile.remove();st.baseTile=null;}
+    if (st.labelTile){st.labelTile.remove();st.labelTile=null;}
+    const b=BASES[basemap];
+    st.baseTile=L.tileLayer(b.base,{attribution:b.baseAttr}).addTo(st.map);
+    if (b.label2Url) st.labelTile=L.tileLayer(b.label2Url,{attribution:b.label2Attr,opacity:b.label2Opacity,pane:'overlayPane'}).addTo(st.map);
+  },[basemap,ready]);
 
-  // ── Đặt điểm xuất phát ───────────────────────────────────────────────────────
-  function setOriginAt(lat, lon, label) {
-    const L = window.L; const st = stRef.current;
-    if (st.originMk) { st.originMk.remove(); st.originMk = null; }
-    const icon = L.divIcon({
+  function setOriginAt(lat,lon,label){
+    const L=window.L; const st=stRef.current;
+    if (st.originMk){st.originMk.remove();st.originMk=null;}
+    st.originMk=L.marker([lat,lon],{icon:L.divIcon({
       className:'',
       html:`<div style="width:14px;height:14px;border-radius:50%;background:#f97316;border:2.5px solid #fff;box-shadow:0 0 0 4px rgba(249,115,22,.3)"></div>`,
-      iconSize:[14,14], iconAnchor:[7,7],
-    });
-    st.originMk = L.marker([lat,lon],{icon}).addTo(st.map)
-      .bindPopup(`Điểm xuất phát: ${label}`).openPopup();
-    setOrigin({lat, lon, label});
-    setAddrInput(label);
-    setAddrSuggestions([]);
+      iconSize:[14,14],iconAnchor:[7,7],
+    })}).addTo(st.map).bindPopup(`Điểm xuất phát: ${label}`).openPopup();
+    setOrigin({lat,lon,label}); setAddrInput(label); setAddrSuggestions([]);
   }
 
-  function locateMe() {
-    navigator.geolocation.getCurrentPosition(pos => {
-      const lat=pos.coords.latitude, lon=pos.coords.longitude;
-      setOriginAt(lat, lon, 'Vị trí của bạn');
-      stRef.current.map?.setView([lat,lon],11);
-    }, ()=>alert('Không lấy được vị trí GPS.'));
+  function locateMe(){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      setOriginAt(pos.coords.latitude,pos.coords.longitude,'Vị trí của bạn');
+      stRef.current.map?.setView([pos.coords.latitude,pos.coords.longitude],11);
+    },()=>alert('Không lấy được vị trí GPS.'));
   }
 
-  function startPickOnMap() {
-    const st = stRef.current; if (!st.map) return;
-    st.pickMode = true;
-    setPickingOrigin(true);
-    st.map.getContainer().style.cursor = 'crosshair';
+  function startPickOnMap(){
+    const st=stRef.current; if (!st.map) return;
+    st.pickMode=true; setPickingOrigin(true);
+    st.map.getContainer().style.cursor='crosshair';
   }
 
-  async function geocodeAddr(q) {
-    if (!q || q.length < 3) { setAddrSuggestions([]); return; }
+  async function geocodeAddr(q){
+    if (!q||q.length<3){setAddrSuggestions([]);return;}
     setGeocoding(true);
     try {
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=vn&accept-language=vi`;
-      const data = await (await fetch(url, { headers:{'User-Agent':'AQI-Tourism-App/1.0'} })).json();
-      setAddrSuggestions(data.map(d => ({
-        label: d.display_name.split(',').slice(0,3).join(', '),
-        lat: parseFloat(d.lat), lon: parseFloat(d.lon),
-      })));
-    } catch(e) { console.error(e); }
+      const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=vn&accept-language=vi`;
+      const data=await(await fetch(url,{headers:{'User-Agent':'AQI-Tourism-App/1.0'}})).json();
+      setAddrSuggestions(data.map(d=>({label:d.display_name.split(',').slice(0,3).join(', '),lat:parseFloat(d.lat),lon:parseFloat(d.lon)})));
+    } catch(e){console.error(e);}
     setGeocoding(false);
   }
 
-  // ── Waypoints QL1A - chỉ dùng cho ô tô/xe máy đường dài, không dùng cho đi bộ ──
-  function buildVNWaypoints(fromLat, fromLon, destLat, destLon) {
-    const R = 6371;
-    const dLat = (destLat - fromLat) * Math.PI / 180;
-    const dLon = (destLon - fromLon) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(fromLat*Math.PI/180)*Math.cos(destLat*Math.PI/180)*Math.sin(dLon/2)**2;
-    const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  // ── Routing ─────────────────────────────────────────────────────────────────
+  async function doRoute(dest){
+    if (!origin){alert('Vui lòng nhập điểm xuất phát trước.');return;}
+    const st=stRef.current; if (!st.map) return;
+    try{ st.route?.remove?st.route.remove():st.route?.clearLayers?.(); }catch(e){}
+    st.route=null;
+    setRouteInfo(null); setRouteWarn(''); setRouting(true);
 
-    if (distKm < 150) return [];
+    const from=[origin.lat,origin.lon];
+    const mc=MODES[mode];
+    const distKm=haversineKm(from[0],from[1],dest.lat,dest.lon);
 
-    const QL1A = [
-      [21.028,105.852],[20.411,106.338],[19.808,105.776],[18.679,105.682],
-      [18.343,105.906],[17.467,106.622],[16.462,107.595],[16.054,108.202],
-      [15.120,108.800],[13.783,109.214],[12.667,109.100],[11.340,108.100],[10.823,106.630],
-    ];
-    const mn = Math.min(fromLat, destLat);
-    const mx = Math.max(fromLat, destLat);
-    return QL1A
-      .filter(([lat]) => lat > mn + 0.3 && lat < mx - 0.3)
-      .sort((a, b) => fromLat > destLat ? b[0] - a[0] : a[0] - b[0]);
-  }
-
-  // ── Routing chính ─────────────────────────────────────────────────────────────
-  async function doRoute(dest) {
-    if (!origin) { alert('Vui lòng nhập điểm xuất phát trước.'); return; }
-    const st = stRef.current; if (!st.map) return;
-    if (st.route) {
-      if (st.route.remove) st.route.remove();
-      else if (st.route.clearLayers) { st.route.clearLayers(); st.route.remove(); }
-      st.route = null;
-    }
-    setRouteInfo(null); setRouting(true);
-    const from = [origin.lat, origin.lon];
-    const mc   = MODES[mode];
-
-    // ── Chế độ Bay ───────────────────────────────────────────────────────────
-    if (mode === 'flight') {
-      const L = window.L;
-      const R=6371, dLat=(dest.lat-from[0])*Math.PI/180, dLon=(dest.lon-from[1])*Math.PI/180;
-      const a=Math.sin(dLat/2)**2+Math.cos(from[0]*Math.PI/180)*Math.cos(dest.lat*Math.PI/180)*Math.sin(dLon/2)**2;
-      const distKm=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-
-      const AIRPORTS = [
-        {code:'SGN',name:'Tân Sơn Nhất (HCM)', lat:10.8188,lon:106.6520},
-        {code:'HAN',name:'Nội Bài (Hà Nội)',    lat:21.2212,lon:105.8070},
-        {code:'DAD',name:'Đà Nẵng',              lat:16.0439,lon:108.1992},
-        {code:'HUI',name:'Phú Bài (Huế)',        lat:16.4015,lon:107.7030},
-        {code:'VII',name:'Vinh',                 lat:18.7376,lon:105.6706},
-        {code:'THD',name:'Thọ Xuân (Thanh Hóa)',lat:19.9014,lon:105.4676},
-        {code:'CXR',name:'Cam Ranh (Khánh Hòa)',lat:11.9982,lon:109.2192},
-        {code:'PQC',name:'Phú Quốc',             lat:10.1698,lon:103.9931},
+    // ── Bay ──────────────────────────────────────────────────────────────────
+    if (mode==='flight'){
+      const L=window.L;
+      const AIRPORTS=[
+        {code:'SGN',name:'Tân Sơn Nhất',lat:10.8188,lon:106.6520},
+        {code:'HAN',name:'Nội Bài',      lat:21.2212,lon:105.8070},
+        {code:'DAD',name:'Đà Nẵng',      lat:16.0439,lon:108.1992},
+        {code:'HUI',name:'Phú Bài',      lat:16.4015,lon:107.7030},
+        {code:'VII',name:'Vinh',         lat:18.7376,lon:105.6706},
+        {code:'THD',name:'Thọ Xuân',     lat:19.9014,lon:105.4676},
+        {code:'CXR',name:'Cam Ranh',     lat:11.9982,lon:109.2192},
+        {code:'PQC',name:'Phú Quốc',     lat:10.1698,lon:103.9931},
       ];
-      const nearest = (lat,lon) => AIRPORTS.reduce((best,a) => {
-        const d=Math.hypot(a.lat-lat,a.lon-lon);
-        return d<Math.hypot(best.lat-lat,best.lon-lon)?a:best;
-      });
-      const apFrom = nearest(from[0], from[1]);
-      const apDest = nearest(dest.lat, dest.lon);
-      const flightMin = Math.round(distKm/800*60+60);
-
-      const lines = [
-        [[from[0],from[1]],[apFrom.lat,apFrom.lon]],
-        [[apFrom.lat,apFrom.lon],[apDest.lat,apDest.lon]],
-        [[apDest.lat,apDest.lon],[dest.lat,dest.lon]],
-      ];
-      const group = L.layerGroup().addTo(st.map);
-      L.polyline(lines[0],{color:'#f97316',weight:3,dashArray:'5 5',opacity:0.8}).addTo(group);
-      L.polyline(lines[1],{color:'#6b21a8',weight:4,dashArray:'8 6',opacity:0.85}).addTo(group);
-      L.polyline(lines[2],{color:'#f97316',weight:3,dashArray:'5 5',opacity:0.8}).addTo(group);
-
-      [apFrom, apDest].forEach(ap => {
-        const icon = L.divIcon({className:'',html:`<div style="background:#6b21a8;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3)">${ap.code}</div>`,iconAnchor:[16,10]});
-        L.marker([ap.lat,ap.lon],{icon}).addTo(group);
-      });
-
-      st.route = group;
+      const nearest=(lat,lon)=>AIRPORTS.reduce((b,a)=>haversineKm(a.lat,a.lon,lat,lon)<haversineKm(b.lat,b.lon,lat,lon)?a:b);
+      const apF=nearest(from[0],from[1]), apD=nearest(dest.lat,dest.lon);
+      const flightMin=Math.round(distKm/800*60+60);
+      const group=L.layerGroup().addTo(st.map);
+      L.polyline([[from[0],from[1]],[apF.lat,apF.lon]],{color:'#f97316',weight:3,dashArray:'5 5',opacity:0.8}).addTo(group);
+      L.polyline([[apF.lat,apF.lon],[apD.lat,apD.lon]],{color:'#6b21a8',weight:4,dashArray:'8 6',opacity:0.85}).addTo(group);
+      L.polyline([[apD.lat,apD.lon],[dest.lat,dest.lon]],{color:'#f97316',weight:3,dashArray:'5 5',opacity:0.8}).addTo(group);
+      [apF,apD].forEach(ap=>L.marker([ap.lat,ap.lon],{icon:L.divIcon({className:'',html:`<div style="background:#6b21a8;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3)">${ap.code}</div>`,iconAnchor:[16,10]})}).addTo(group));
+      st.route=group;
       st.map.fitBounds(L.latLngBounds([from,[dest.lat,dest.lon]]).pad(0.2));
-
-      setRouteInfo({
-        km: distKm.toFixed(0), time: `~${flightMin} phút`, name: dest.name, mode,
-        steps: [
-          {icon:'▶', text:`Từ ${origin.label}`, dist:'', dur:''},
-          {icon:'🚗', text:`Đến sân bay ${apFrom.name}`, dist:fmtDist(Math.hypot(apFrom.lat-from[0],apFrom.lon-from[1])*111000), dur:''},
-          {icon:'✈', text:`Bay ${apFrom.code} → ${apDest.code}`, dist:`${distKm.toFixed(0)} km`, dur:`~${flightMin} phút (gồm check-in/ra vào sân bay)`},
-          {icon:'🚗', text:`Từ sân bay ${apDest.name} đến ${dest.name}`, dist:fmtDist(Math.hypot(apDest.lat-dest.lat,apDest.lon-dest.lon)*111000), dur:''},
-          {icon:'★', text:`Đến ${dest.name}`, dist:'', dur:''},
-        ],
-      });
+      setRouteInfo({km:distKm.toFixed(0),time:`~${flightMin} phút`,name:dest.name,mode,steps:[
+        {icon:'▶',text:`Từ ${origin.label}`,dist:'',dur:''},
+        {icon:'🚗',text:`Đến sân bay ${apF.name} (${apF.code})`,dist:fmtDist(haversineKm(from[0],from[1],apF.lat,apF.lon)*1000),dur:''},
+        {icon:'✈',text:`Bay ${apF.code} → ${apD.code}`,dist:`${distKm.toFixed(0)} km`,dur:`~${flightMin} phút`},
+        {icon:'🚗',text:`Từ sân bay ${apD.name} đến ${dest.name}`,dist:fmtDist(haversineKm(apD.lat,apD.lon,dest.lat,dest.lon)*1000),dur:''},
+        {icon:'★',text:`Đến ${dest.name}`,dist:'',dur:''},
+      ]});
       setRouting(false); return;
     }
 
-    // ── Ô tô / Xe máy: dùng waypoints QL1A cho đường dài ─────────────────────
-    // ── Đi bộ: KHÔNG dùng waypoints (quãng đường ngắn, không cần thiết) ──────
-    const waypoints = (mode === 'car' || mode === 'bike')
-      ? buildVNWaypoints(from[0], from[1], dest.lat, dest.lon)
-      : [];
+    // ── Đi bộ: chặn nếu quá xa ──────────────────────────────────────────────
+    if (mode==='foot' && distKm>50){
+      setRouteWarn(`⚠️ Khoảng cách ${distKm.toFixed(0)} km quá xa để đi bộ. Đi bộ thực tế chỉ phù hợp trong ~10–20 km. Hãy chọn Xe máy hoặc Ô tô.`);
+      setRouting(false); return;
+    }
 
-    const coordStr = [
+    // ── Ô tô / Xe máy / Đi bộ ───────────────────────────────────────────────
+    // Chỉ car/bike mới dùng waypoints QL1A
+    const waypoints=(mode==='car'||mode==='bike')?buildVNWaypoints(from[0],from[1],dest.lat,dest.lon):[];
+    const coordStr=[
       `${from[1]},${from[0]}`,
-      ...waypoints.map(w => `${w[1]},${w[0]}`),
+      ...waypoints.map(w=>`${w[1]},${w[0]}`),
       `${dest.lon},${dest.lat}`,
     ].join(';');
 
-    // ── FIX 2: Dùng mc.endpoint thay vì hardcode 'driving' ───────────────────
-    // car  → /routed-car/route/v1/driving/...
-    // bike → /routed-bike/route/v1/driving/...  (đường nhỏ hơn, phù hợp xe máy)
-    // foot → /routed-foot/route/v1/walking/...  (trước bị lỗi vì dùng /driving/)
-    const url = `https://routing.openstreetmap.de/${mc.profile}/route/v1/${mc.endpoint}/${coordStr}?overview=full&geometries=geojson&steps=true`;
+    const data=await fetchOSRM(mc.endpoint, coordStr);
 
-    try {
-      const d = await (await fetch(url)).json();
-      if (d.code==='Ok' && d.routes[0]) {
-        const r=d.routes[0]; const L=window.L;
-        const pts=r.geometry.coordinates.map(c=>[c[1],c[0]]);
-        st.route = L.polyline(pts,{color:mc.lineColor,weight:5,opacity:0.85,dashArray:mc.dash}).addTo(st.map);
-        st.map.fitBounds(L.latLngBounds([[from[0],from[1]],[dest.lat,dest.lon]]).pad(0.15));
+    if (data){
+      const r=data.routes[0]; const L=window.L;
+      const pts=r.geometry.coordinates.map(c=>[c[1],c[0]]);
+      st.route=L.polyline(pts,{color:mc.lineColor,weight:5,opacity:0.85,dashArray:mc.dash}).addTo(st.map);
+      st.map.fitBounds(L.latLngBounds([[from[0],from[1]],[dest.lat,dest.lon]]).pad(0.15));
 
-        const steps = [];
-        r.legs.forEach(leg => leg.steps.forEach(step => {
-          const road = step.name||(step.ref?`Đường ${step.ref}`:'');
-          const icon = getTurnIcon(step);
-          let text = '';
-          if (step.maneuver.type==='depart') text=`Bắt đầu${road?` trên ${road}`:''}`;
-          else if (step.maneuver.type==='arrive') text=`Đến ${dest.name}`;
-          else {
-            const dirMap={'left':'Rẽ trái','right':'Rẽ phải','slight left':'Veer trái','slight right':'Veer phải','sharp left':'Quặt trái','sharp right':'Quặt phải','straight':'Đi thẳng','uturn':'Quay đầu'};
-            text=`${dirMap[step.maneuver.modifier]||'Tiếp tục'}${road?` vào ${road}`:''}`;
-          }
-          if (step.distance>5||step.maneuver.type==='depart'||step.maneuver.type==='arrive')
-            steps.push({icon,text,dist:step.distance>0?fmtDist(step.distance):'',dur:step.duration>10?fmtDur(step.duration):''});
-        }));
+      const steps=[];
+      r.legs.forEach(leg=>leg.steps.forEach(step=>{
+        const road=step.name||(step.ref?`Đường ${step.ref}`:'');
+        const icon=getTurnIcon(step);
+        let text='';
+        if (step.maneuver.type==='depart') text=`Bắt đầu${road?` trên ${road}`:''}`;
+        else if (step.maneuver.type==='arrive') text=`Đến ${dest.name}`;
+        else {
+          const dm={left:'Rẽ trái',right:'Rẽ phải','slight left':'Veer trái','slight right':'Veer phải','sharp left':'Quặt trái','sharp right':'Quặt phải',straight:'Đi thẳng',uturn:'Quay đầu'};
+          text=`${dm[step.maneuver.modifier]||'Tiếp tục'}${road?` vào ${road}`:''}`;
+        }
+        if (step.distance>5||step.maneuver.type==='depart'||step.maneuver.type==='arrive')
+          steps.push({icon,text,dist:step.distance>0?fmtDist(step.distance):'',dur:step.duration>10?fmtDur(step.duration):''});
+      }));
 
-        const totalMin=Math.round(r.duration/60);
-        const timeStr=totalMin<60?`${totalMin} phút`:`${Math.floor(totalMin/60)}h${totalMin%60?` ${totalMin%60}p`:''}`;
-        setRouteInfo({km:(r.distance/1000).toFixed(1),time:timeStr,name:dest.name,mode,steps});
-      } else {
-        alert('Không tìm được tuyến đường. Thử phương tiện khác hoặc kiểm tra điểm xuất phát.');
-      }
-    } catch(e) { console.error(e); alert('Lỗi kết nối routing server.'); }
+      // Xe máy: nhân timeFactor 1.15 (chậm hơn ô tô ~15%)
+      const adjSec=r.duration*mc.timeFactor;
+      const totalMin=Math.round(adjSec/60);
+      const timeStr=totalMin<60?`${totalMin} phút`:`${Math.floor(totalMin/60)}h${totalMin%60?` ${totalMin%60}p`:''}`;
+      setRouteInfo({km:(r.distance/1000).toFixed(1),time:timeStr,name:dest.name,mode,steps});
+
+      if (mode==='bike'&&distKm>300)
+        setRouteWarn(`ℹ️ ${distKm.toFixed(0)} km bằng xe máy (~${timeStr}). Nên nghỉ ngơi mỗi 2–3 giờ.`);
+    } else {
+      // Fallback: ước tính đường chim bay
+      const spd=mode==='foot'?5:mode==='bike'?50:80;
+      const hrs=(distKm/spd).toFixed(1);
+      setRouteWarn(
+        `⚠️ Không tính được đường chi tiết (${distKm.toFixed(0)} km).\n` +
+        `Ước tính: ~${hrs} giờ (${mode==='foot'?'đi bộ':mode==='bike'?'xe máy':'ô tô'}, đường chim bay).\n` +
+        `Gợi ý: thử phương tiện "Bay" hoặc dùng Google Maps cho tuyến này.`
+      );
+    }
     setRouting(false);
   }
 
-  function clearRoute() {
+  function clearRoute(){
     const st=stRef.current;
-    if (st.route) {
-      if (st.route.remove) st.route.remove();
-      else if (st.route.clearLayers) st.route.clearLayers();
-      st.route=null;
-    }
-    setRouteInfo(null);
+    try{st.route?.remove?st.route.remove():st.route?.clearLayers?.();}catch(e){}
+    st.route=null; setRouteInfo(null); setRouteWarn('');
   }
 
-  function toggleFS() {
-    const el=wrapRef.current; if(!el) return;
-    if(!isFS){(el.requestFullscreen||el.webkitRequestFullscreen||(()=>{})).call(el);}
+  function toggleFS(){
+    const el=wrapRef.current; if (!el) return;
+    if (!isFS){(el.requestFullscreen||el.webkitRequestFullscreen||(()=>{})).call(el);}
     else{(document.exitFullscreen||document.webkitExitFullscreen||(()=>{})).call(document);}
-    setIsFS(f=>!f);
-    setTimeout(()=>stRef.current.map?.invalidateSize(),350);
+    setIsFS(f=>!f); setTimeout(()=>stRef.current.map?.invalidateSize(),350);
   }
 
-  const selSuit = selected ? SUIT_CFG[getSuit(filterAqi,selected.type)] : null;
+  const selSuit=selected?SUIT_CFG[getSuit(filterAqi,selected.type)]:null;
 
   return (
     <div ref={wrapRef} style={{background:isFS?'#fff':'transparent',padding:isFS?12:0}}>
 
-      {/* ── Điểm xuất phát ─────────────────────────────────────────────────── */}
+      {/* Điểm xuất phát */}
       <div style={{background:'#f8fafd',borderRadius:10,border:'1px solid #e0e7f0',padding:'10px 14px',marginBottom:10}}>
         <div style={{fontSize:'0.7rem',fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:7}}>Điểm xuất phát</div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',position:'relative'}}>
           <div style={{flex:1,minWidth:200,position:'relative'}}>
-            <input
-              value={addrInput}
-              onChange={e=>{setAddrInput(e.target.value); geocodeAddr(e.target.value);}}
+            <input value={addrInput} onChange={e=>{setAddrInput(e.target.value);geocodeAddr(e.target.value);}}
               placeholder="Nhập địa chỉ hoặc tên nơi xuất phát..."
-              style={{width:'100%',padding:'6px 10px',borderRadius:7,border:'1px solid #e0e7f0',fontSize:'0.8rem',outline:'none',boxSizing:'border-box'}}
-            />
-            {addrSuggestions.length>0 && (
+              style={{width:'100%',padding:'6px 10px',borderRadius:7,border:'1px solid #e0e7f0',fontSize:'0.8rem',outline:'none',boxSizing:'border-box'}}/>
+            {addrSuggestions.length>0&&(
               <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e0e7f0',borderRadius:7,boxShadow:'0 4px 12px rgba(0,0,0,.1)',zIndex:1000,marginTop:2}}>
-                {geocoding && <div style={{padding:'6px 10px',fontSize:'0.74rem',color:'#94a3b8'}}>Đang tìm...</div>}
+                {geocoding&&<div style={{padding:'6px 10px',fontSize:'0.74rem',color:'#94a3b8'}}>Đang tìm...</div>}
                 {addrSuggestions.map((s,i)=>(
-                  <div key={i} onClick={()=>{setOriginAt(s.lat,s.lon,s.label); stRef.current.map?.setView([s.lat,s.lon],12);}}
+                  <div key={i} onClick={()=>{setOriginAt(s.lat,s.lon,s.label);stRef.current.map?.setView([s.lat,s.lon],12);}}
                     style={{padding:'7px 10px',fontSize:'0.78rem',color:'#334155',cursor:'pointer',borderBottom:i<addrSuggestions.length-1?'1px solid #f1f5f9':'none'}}
                     onMouseEnter={e=>e.currentTarget.style.background='#f8fafd'}
-                    onMouseLeave={e=>e.currentTarget.style.background=''}
-                  >{s.label}</div>
+                    onMouseLeave={e=>e.currentTarget.style.background=''}>{s.label}</div>
                 ))}
               </div>
             )}
           </div>
-          <button onClick={locateMe} style={{padding:'6px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:'1.5px solid #e0e7f0',background:'#fff',color:'#64748b',whiteSpace:'nowrap'}}>
-            GPS
-          </button>
+          <button onClick={locateMe} style={{padding:'6px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:'1.5px solid #e0e7f0',background:'#fff',color:'#64748b',whiteSpace:'nowrap'}}>GPS</button>
           <button onClick={startPickOnMap} style={{padding:'6px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:`1.5px solid ${pickingOrigin?'#f97316':'#e0e7f0'}`,background:pickingOrigin?'#fff7ed':'#fff',color:pickingOrigin?'#f97316':'#64748b',whiteSpace:'nowrap'}}>
             {pickingOrigin?'Click vào map...':'Chấm trên map'}
           </button>
-          {origin && (
+          {origin&&(
             <button onClick={()=>{setOrigin(null);setAddrInput('');setAddrSuggestions([]);const st=stRef.current;if(st.originMk){st.originMk.remove();st.originMk=null;}}}
               style={{padding:'6px 8px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:'1px solid #fecaca',background:'#fef2f2',color:'#dc2626'}}>✕</button>
           )}
         </div>
-        {origin && (
-          <div style={{marginTop:6,fontSize:'0.7rem',color:'#15803d',display:'flex',gap:4,alignItems:'center'}}>
-            <div style={{width:8,height:8,borderRadius:'50%',background:'#f97316',flexShrink:0}}/>
-            {origin.label}
-          </div>
-        )}
-        {pickingOrigin && (
-          <div style={{marginTop:6,fontSize:'0.72rem',color:'#f97316',fontWeight:600}}>Click vào bất kỳ vị trí nào trên bản đồ để đặt điểm xuất phát</div>
-        )}
+        {origin&&<div style={{marginTop:6,fontSize:'0.7rem',color:'#15803d',display:'flex',gap:4,alignItems:'center'}}><div style={{width:8,height:8,borderRadius:'50%',background:'#f97316',flexShrink:0}}/>{origin.label}</div>}
+        {pickingOrigin&&<div style={{marginTop:6,fontSize:'0.72rem',color:'#f97316',fontWeight:600}}>Click vào bất kỳ vị trí nào trên bản đồ để đặt điểm xuất phát</div>}
       </div>
 
-      {/* ── Thanh điều khiển map ───────────────────────────────────────────── */}
+      {/* Thanh điều khiển */}
       <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
         <span style={{fontSize:'0.68rem',color:'#94a3b8',fontWeight:600}}>NỀN:</span>
         {Object.entries(BASES).map(([k,b])=>(
           <button key={k} onClick={()=>setBasemap(k)} style={{padding:'3px 10px',borderRadius:20,fontSize:'0.72rem',cursor:'pointer',border:`1.5px solid ${basemap===k?'#1565c0':'#e0e7f0'}`,background:basemap===k?'#eff6ff':'#fff',color:basemap===k?'#1565c0':'#64748b',fontWeight:basemap===k?700:400}}>{b.label}</button>
         ))}
-        {routeInfo && (
-          <button onClick={clearRoute} style={{padding:'3px 9px',borderRadius:20,fontSize:'0.72rem',cursor:'pointer',border:'1.5px solid #fecaca',background:'#fef2f2',color:'#dc2626'}}>Xóa đường</button>
-        )}
-        <button onClick={toggleFS} style={{marginLeft:'auto',padding:'3px 10px',borderRadius:20,fontSize:'0.72rem',cursor:'pointer',border:'1.5px solid #e0e7f0',background:'#fff',color:'#64748b'}}>
-          {isFS?'Thu nhỏ':'Toàn màn hình'}
-        </button>
+        {(routeInfo||routeWarn)&&<button onClick={clearRoute} style={{padding:'3px 9px',borderRadius:20,fontSize:'0.72rem',cursor:'pointer',border:'1.5px solid #fecaca',background:'#fef2f2',color:'#dc2626'}}>Xóa đường</button>}
+        <button onClick={toggleFS} style={{marginLeft:'auto',padding:'3px 10px',borderRadius:20,fontSize:'0.72rem',cursor:'pointer',border:'1.5px solid #e0e7f0',background:'#fff',color:'#64748b'}}>{isFS?'Thu nhỏ':'Toàn màn hình'}</button>
       </div>
 
-      {/* ── Route summary ──────────────────────────────────────────────────── */}
-      {routeInfo && (
+      {/* Cảnh báo */}
+      {routeWarn&&(
+        <div style={{marginBottom:8,padding:'10px 14px',borderRadius:8,background:'#fffbeb',border:'1px solid #fde68a',fontSize:'0.78rem',color:'#92400e',whiteSpace:'pre-line',lineHeight:1.5}}>
+          {routeWarn}
+        </div>
+      )}
+
+      {/* Route summary */}
+      {routeInfo&&(
         <div style={{marginBottom:8,padding:'8px 14px',borderRadius:8,background:MODES[routeInfo.mode].color+'12',border:`1px solid ${MODES[routeInfo.mode].color}33`,display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
           <span style={{fontWeight:800,color:MODES[routeInfo.mode].color,fontSize:'1rem'}}>{routeInfo.km} km</span>
           <span style={{color:'#475569',fontSize:'0.82rem'}}>{routeInfo.time} · {MODES[routeInfo.mode].label}</span>
@@ -625,8 +529,8 @@ function TourMap({ spots, filterAqi, slug }) {
         </div>
       )}
 
-      {/* ── Step-by-step ──────────────────────────────────────────────────── */}
-      {routeInfo && showSteps && routeInfo.steps?.length>0 && (
+      {/* Step-by-step */}
+      {routeInfo&&showSteps&&routeInfo.steps?.length>0&&(
         <div style={{marginBottom:10,background:'#fff',borderRadius:10,border:'1px solid #e0e7f0',overflow:'hidden',maxHeight:220,overflowY:'auto'}}>
           <div style={{padding:'8px 12px',background:'#f8fafd',borderBottom:'1px solid #f1f5f9',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <span style={{fontSize:'0.76rem',fontWeight:700,color:'#334155'}}>Hướng dẫn từng bước ({routeInfo.steps.length} bước)</span>
@@ -646,11 +550,11 @@ function TourMap({ spots, filterAqi, slug }) {
         </div>
       )}
 
-      {/* ── Map ──────────────────────────────────────────────────────────────── */}
-      <div ref={divRef} className="map-h-tour" style={{width:'100%',height:isFS?'calc(100vh - 260px)':400,borderRadius:10,border:'1px solid #e0e7f0'}} />
+      {/* Map */}
+      <div ref={divRef} className="map-h-tour" style={{width:'100%',height:isFS?'calc(100vh - 260px)':400,borderRadius:10,border:'1px solid #e0e7f0'}}/>
 
-      {/* ── Popup điểm du lịch ─────────────────────────────────────────────── */}
-      {selected && selSuit && (
+      {/* Popup điểm */}
+      {selected&&selSuit&&(
         <div style={{marginTop:8,background:'#fff',borderRadius:10,border:`1.5px solid ${selSuit.border}`,padding:'10px 14px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,marginBottom:4}}>
             <b style={{fontSize:'0.88rem',color:'#1e293b'}}>{selected.name}</b>
@@ -664,12 +568,21 @@ function TourMap({ spots, filterAqi, slug }) {
                 <button key={k} onClick={()=>setMode(k)} style={{padding:'5px 11px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',fontWeight:mode===k?700:400,border:`1.5px solid ${mode===k?m.color:'#e0e7f0'}`,background:mode===k?m.color+'18':'#fff',color:mode===k?m.color:'#64748b'}}>{m.label}</button>
               ))}
             </div>
-            {!origin && <div style={{marginTop:5,fontSize:'0.7rem',color:'#f97316'}}>Nhập điểm xuất phát ở trên trước khi chỉ đường</div>}
+            {/* Gợi ý thông minh theo khoảng cách */}
+            {origin&&(()=>{
+              const d=haversineKm(origin.lat,origin.lon,selected.lat,selected.lon);
+              if (mode==='foot'&&d>20) return <div style={{marginTop:5,fontSize:'0.7rem',color:'#b45309'}}>⚠️ {d.toFixed(0)} km - quá xa để đi bộ, nên chọn xe máy hoặc ô tô</div>;
+              if (d>500) return <div style={{marginTop:5,fontSize:'0.7rem',color:'#6b21a8'}}>✈️ {d.toFixed(0)} km - nên chọn "Bay" để tiết kiệm thời gian</div>;
+              if (d>100) return <div style={{marginTop:5,fontSize:'0.7rem',color:'#64748b'}}>📍 {d.toFixed(0)} km đường chim bay</div>;
+              return null;
+            })()}
+            {!origin&&<div style={{marginTop:5,fontSize:'0.7rem',color:'#f97316'}}>Nhập điểm xuất phát ở trên trước khi chỉ đường</div>}
           </div>
           <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
             <span style={{fontSize:'0.65rem',background:'#f1f5f9',borderRadius:5,padding:'1px 6px',color:'#64748b'}}>{selected.hours}</span>
             <span style={{fontSize:'0.65rem',background:'#f1f5f9',borderRadius:5,padding:'1px 6px',color:'#64748b'}}>{TYPE_LABEL[selected.type]}</span>
-            <button onClick={()=>doRoute(selected)} disabled={routing||!origin} style={{marginLeft:'auto',padding:'6px 16px',borderRadius:7,fontSize:'0.78rem',fontWeight:700,cursor:(routing||!origin)?'not-allowed':'pointer',border:'none',background:(routing||!origin)?'#cbd5e1':MODES[mode].color,color:'#fff'}}>
+            <button onClick={()=>doRoute(selected)} disabled={routing||!origin}
+              style={{marginLeft:'auto',padding:'6px 16px',borderRadius:7,fontSize:'0.78rem',fontWeight:700,cursor:(routing||!origin)?'not-allowed':'pointer',border:'none',background:(routing||!origin)?'#cbd5e1':MODES[mode].color,color:'#fff'}}>
               {routing?'Đang tính...':'Chỉ đường'}
             </button>
             <button onClick={()=>setSelected(null)} style={{padding:'6px 10px',borderRadius:7,fontSize:'0.76rem',cursor:'pointer',border:'1px solid #e0e7f0',background:'#f8fafd',color:'#64748b'}}>✕</button>
@@ -677,18 +590,17 @@ function TourMap({ spots, filterAqi, slug }) {
         </div>
       )}
 
-      {/* ── Legend ────────────────────────────────────────────────────────────── */}
+      {/* Legend */}
       <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8,fontSize:'0.65rem',color:'#94a3b8'}}>
         {Object.entries(CAT_COLOR).map(([k,c])=>(
           <span key={k} style={{display:'flex',alignItems:'center',gap:3}}>
-            <span style={{width:8,height:8,borderRadius:'50%',background:c,display:'inline-block'}}/>
-            {CAT_LABEL[k]}
+            <span style={{width:8,height:8,borderRadius:'50%',background:c,display:'inline-block'}}/>{CAT_LABEL[k]}
           </span>
         ))}
         <span style={{marginLeft:4}}>· viền màu = mức phù hợp AQI</span>
       </div>
       <p style={{fontSize:'0.65rem',color:'#b0b8c8',marginTop:3}}>
-        Click điểm → chọn phương tiện → Chỉ đường từng bước. Layer vệ tinh có overlay tên đường.
+        Click điểm → chọn phương tiện → Chỉ đường. Đi bộ chỉ hỗ trợ &lt;50 km. Đường xa &gt;500 km nên chọn Bay.
       </p>
     </div>
   );
@@ -696,19 +608,19 @@ function TourMap({ spots, filterAqi, slug }) {
 
 // ── Spot Card ─────────────────────────────────────────────────────────────────
 function SpotCard({ spot, filterAqi }) {
-  const s = getSuit(filterAqi, spot.type); const c = SUIT_CFG[s];
+  const s=getSuit(filterAqi,spot.type); const c=SUIT_CFG[s];
   return (
-    <div style={{ background: '#fff', borderRadius: 10, border: `1px solid ${c.border}`, overflow: 'hidden' }}>
-      <div style={{ background: c.bg, padding: '7px 12px', borderBottom: `1px solid ${c.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#1e293b' }}>{spot.name}</span>
-        <span style={{ background: c.color, color: '#fff', borderRadius: 20, padding: '1px 7px', fontSize: '0.6rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.label}</span>
+    <div style={{background:'#fff',borderRadius:10,border:`1px solid ${c.border}`,overflow:'hidden'}}>
+      <div style={{background:c.bg,padding:'7px 12px',borderBottom:`1px solid ${c.border}`,display:'flex',justifyContent:'space-between',alignItems:'center',gap:6}}>
+        <span style={{fontWeight:700,fontSize:'0.82rem',color:'#1e293b'}}>{spot.name}</span>
+        <span style={{background:c.color,color:'#fff',borderRadius:20,padding:'1px 7px',fontSize:'0.6rem',fontWeight:700,whiteSpace:'nowrap'}}>{c.label}</span>
       </div>
-      <div style={{ padding: '8px 12px' }}>
-        <p style={{ fontSize: '0.74rem', color: '#475569', lineHeight: 1.4, margin: '0 0 6px' }}>{spot.desc}</p>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <span style={{ fontSize: '0.62rem', background: '#f1f5f9', borderRadius: 5, padding: '1px 6px', color: '#64748b' }}>{spot.hours}</span>
-          <span style={{ fontSize: '0.62rem', background: '#f1f5f9', borderRadius: 5, padding: '1px 6px', color: '#64748b' }}>{TYPE_LABEL[spot.type]}</span>
-          <span style={{ fontSize: '0.62rem', background: '#f1f5f9', borderRadius: 5, padding: '1px 6px', color: '#64748b' }}>{CAT_LABEL[spot.cat]}</span>
+      <div style={{padding:'8px 12px'}}>
+        <p style={{fontSize:'0.74rem',color:'#475569',lineHeight:1.4,margin:'0 0 6px'}}>{spot.desc}</p>
+        <div style={{display:'flex',gap:4}}>
+          <span style={{fontSize:'0.62rem',background:'#f1f5f9',borderRadius:5,padding:'1px 6px',color:'#64748b'}}>{spot.hours}</span>
+          <span style={{fontSize:'0.62rem',background:'#f1f5f9',borderRadius:5,padding:'1px 6px',color:'#64748b'}}>{TYPE_LABEL[spot.type]}</span>
+          <span style={{fontSize:'0.62rem',background:'#f1f5f9',borderRadius:5,padding:'1px 6px',color:'#64748b'}}>{CAT_LABEL[spot.cat]}</span>
         </div>
       </div>
     </div>
@@ -717,110 +629,90 @@ function SpotCard({ spot, filterAqi }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Tab6Tourism({ data, slug }) {
-  const realAqi   = data?.current?.aqi ?? 100;
-  const [sliderAqi, setSliderAqi] = useState(Math.round(realAqi));
-  const [fCat,  setFCat]  = useState('all');
-  const [fType, setFType] = useState('all');
+  const realAqi=data?.current?.aqi??100;
+  const [sliderAqi,setSliderAqi]=useState(Math.round(realAqi));
+  const [fCat,setFCat]=useState('all');
+  const [fType,setFType]=useState('all');
 
-  useEffect(() => { setSliderAqi(Math.round(realAqi)); }, [slug, realAqi]);
+  useEffect(()=>{setSliderAqi(Math.round(realAqi));},[slug,realAqi]);
 
-  const spots = TOURISM_DATA[slug] || [];
-  const pname = PNAME[slug] || slug;
-  const lvl   = aqiLevel(sliderAqi);
+  const spots=TOURISM_DATA[slug]||[];
+  const pname=PNAME[slug]||slug;
+  const lvl=aqiLevel(sliderAqi);
 
-  const filtered = useMemo(() => spots.filter(s => {
-    const suit = getSuit(sliderAqi, s.type);
-    if (suit === 'no' || suit === 'indoor_only') return false;
-    if (fCat  !== 'all' && s.cat  !== fCat)  return false;
-    if (fType !== 'all' && s.type !== fType) return false;
+  const filtered=useMemo(()=>spots.filter(s=>{
+    const suit=getSuit(sliderAqi,s.type);
+    if (suit==='no'||suit==='indoor_only') return false;
+    if (fCat!=='all'&&s.cat!==fCat) return false;
+    if (fType!=='all'&&s.type!==fType) return false;
     return true;
-  }), [spots, sliderAqi, fCat, fType]);
+  }),[spots,sliderAqi,fCat,fType]);
 
-  const allFiltered = useMemo(() => spots.filter(s => {
-    if (fCat  !== 'all' && s.cat  !== fCat)  return false;
-    if (fType !== 'all' && s.type !== fType) return false;
+  const allFiltered=useMemo(()=>spots.filter(s=>{
+    if (fCat!=='all'&&s.cat!==fCat) return false;
+    if (fType!=='all'&&s.type!==fType) return false;
     return true;
-  }), [spots, fCat, fType]);
+  }),[spots,fCat,fType]);
 
-  const headerBg = ['#1a7a2e','#6b6b00','#b85c00','#b82222','#6b1a91','#7a0a1a'][Math.min(lvl, 5)];
-  const btn = (on) => ({
-    padding: '4px 10px', borderRadius: 7, fontSize: '0.74rem', cursor: 'pointer',
-    border: `1px solid ${on ? '#1565c0' : '#e0e7f0'}`,
-    background: on ? '#1565c0' : '#fff',
-    color: on ? '#fff' : '#64748b', fontWeight: on ? 600 : 400,
-  });
+  const headerBg=['#1a7a2e','#6b6b00','#b85c00','#b82222','#6b1a91','#7a0a1a'][Math.min(lvl,5)];
+  const btn=(on)=>({padding:'4px 10px',borderRadius:7,fontSize:'0.74rem',cursor:'pointer',border:`1px solid ${on?'#1565c0':'#e0e7f0'}`,background:on?'#1565c0':'#fff',color:on?'#fff':'#64748b',fontWeight:on?600:400});
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-      {/* Header */}
-      <div style={{ borderRadius: 12, padding: '12px 16px', color: '#fff', background: headerBg }}>
-        <div style={{ fontWeight: 800, fontSize: '0.95rem', marginBottom: 4 }}>
-          Gợi ý Du lịch - {pname}
-        </div>
-        <div style={{ fontSize: '0.8rem', opacity: 0.88 }}>
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{borderRadius:12,padding:'12px 16px',color:'#fff',background:headerBg}}>
+        <div style={{fontWeight:800,fontSize:'0.95rem',marginBottom:4}}>Gợi ý Du lịch - {pname}</div>
+        <div style={{fontSize:'0.8rem',opacity:0.88}}>
           AQI hiện tại: <b>{Math.round(realAqi)}</b> ({AQI_LABELS[aqiLevel(realAqi)]})
-          {Math.round(realAqi) !== sliderAqi && (
-            <span style={{ marginLeft: 10, opacity: 0.75 }}>· Đang xem: AQI {sliderAqi}</span>
-          )}
+          {Math.round(realAqi)!==sliderAqi&&<span style={{marginLeft:10,opacity:0.75}}>· Đang xem: AQI {sliderAqi}</span>}
         </div>
       </div>
 
-      {/* AQI Slider + Recommendation table */}
-      <AQISliderPanel sliderAqi={sliderAqi} setSliderAqi={setSliderAqi} />
+      <AQISliderPanel sliderAqi={sliderAqi} setSliderAqi={setSliderAqi}/>
 
-      {/* Map */}
-      <div style={{ background: '#fff', borderRadius: 12, padding: 14, boxShadow: '0 1px 6px rgba(0,0,0,.06)' }}>
-        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 8, fontSize: '0.9rem' }}>
+      <div style={{background:'#fff',borderRadius:12,padding:14,boxShadow:'0 1px 6px rgba(0,0,0,.06)'}}>
+        <div style={{fontWeight:700,color:'#1e293b',marginBottom:8,fontSize:'0.9rem'}}>
           Bản đồ điểm du lịch
-          <span style={{ marginLeft: 8, fontSize: '0.72rem', color: '#94a3b8', fontWeight: 400 }}>
-            - màu viền theo mức phù hợp với AQI {sliderAqi}
-          </span>
+          <span style={{marginLeft:8,fontSize:'0.72rem',color:'#94a3b8',fontWeight:400}}>- màu viền theo mức phù hợp với AQI {sliderAqi}</span>
         </div>
-        <TourMap spots={allFiltered} filterAqi={sliderAqi} slug={slug} />
+        <TourMap spots={allFiltered} filterAqi={sliderAqi} slug={slug}/>
       </div>
 
-      {/* Bộ lọc */}
-      <div style={{ background: '#fff', borderRadius: 12, padding: 14, boxShadow: '0 1px 6px rgba(0,0,0,.06)' }}>
-        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 10, fontSize: '0.86rem' }}>Lọc danh sách</div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{background:'#fff',borderRadius:12,padding:14,boxShadow:'0 1px 6px rgba(0,0,0,.06)'}}>
+        <div style={{fontWeight:700,color:'#1e293b',marginBottom:10,fontSize:'0.86rem'}}>Lọc danh sách</div>
+        <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
           <div>
-            <div style={{ fontSize: '0.63rem', color: '#94a3b8', marginBottom: 4, fontWeight: 700, textTransform: 'uppercase' }}>Không gian</div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {[['all','Tất cả'],['outdoor','Ngoài trời'],['indoor','Trong nhà'],['mixed','Kết hợp']].map(([v,l]) => (
-                <button key={v} onClick={() => setFType(v)} style={btn(fType===v)}>{l}</button>
+            <div style={{fontSize:'0.63rem',color:'#94a3b8',marginBottom:4,fontWeight:700,textTransform:'uppercase'}}>Không gian</div>
+            <div style={{display:'flex',gap:4}}>
+              {[['all','Tất cả'],['outdoor','Ngoài trời'],['indoor','Trong nhà'],['mixed','Kết hợp']].map(([v,l])=>(
+                <button key={v} onClick={()=>setFType(v)} style={btn(fType===v)}>{l}</button>
               ))}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '0.63rem', color: '#94a3b8', marginBottom: 4, fontWeight: 700, textTransform: 'uppercase' }}>Loại hình</div>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {[['all','Tất cả'],['beach','Biển'],['trekking','Trekking'],['nature','Thiên nhiên'],['heritage','Di tích'],['food','Ẩm thực']].map(([v,l]) => (
-                <button key={v} onClick={() => setFCat(v)} style={btn(fCat===v)}>{l}</button>
+            <div style={{fontSize:'0.63rem',color:'#94a3b8',marginBottom:4,fontWeight:700,textTransform:'uppercase'}}>Loại hình</div>
+            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+              {[['all','Tất cả'],['beach','Biển'],['trekking','Trekking'],['nature','Thiên nhiên'],['heritage','Di tích'],['food','Ẩm thực']].map(([v,l])=>(
+                <button key={v} onClick={()=>setFCat(v)} style={btn(fCat===v)}>{l}</button>
               ))}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Cards */}
       <div>
-        <div style={{ marginBottom: 8, fontSize: '0.78rem', color: '#64748b' }}>
-          Ở mức AQI <b style={{ color: '#1e293b' }}>{sliderAqi}</b>, có <b style={{ color: '#1e293b' }}>{filtered.length}</b>/{spots.length} điểm phù hợp
-          {filtered.length < allFiltered.length && (
-            <span style={{ color: '#94a3b8' }}> (ẩn {allFiltered.length - filtered.length} điểm không nên đến)</span>
-          )}
+        <div style={{marginBottom:8,fontSize:'0.78rem',color:'#64748b'}}>
+          Ở mức AQI <b style={{color:'#1e293b'}}>{sliderAqi}</b>, có <b style={{color:'#1e293b'}}>{filtered.length}</b>/{spots.length} điểm phù hợp
+          {filtered.length<allFiltered.length&&<span style={{color:'#94a3b8'}}> (ẩn {allFiltered.length-filtered.length} điểm không nên đến)</span>}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))', gap: 10 }}>
-          {filtered.map((s, i) => <SpotCard key={i} spot={s} filterAqi={sliderAqi} />)}
-          {!filtered.length && (
-            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 28, color: '#94a3b8', fontSize: '0.84rem' }}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(250px,1fr))',gap:10}}>
+          {filtered.map((s,i)=><SpotCard key={i} spot={s} filterAqi={sliderAqi}/>)}
+          {!filtered.length&&(
+            <div style={{gridColumn:'1/-1',textAlign:'center',padding:28,color:'#94a3b8',fontSize:'0.84rem'}}>
               Không có điểm nào phù hợp để tham quan với mức AQI này.
             </div>
           )}
         </div>
       </div>
-
     </div>
   );
 }
