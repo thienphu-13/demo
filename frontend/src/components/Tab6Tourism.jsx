@@ -245,10 +245,10 @@ function TourMap({ spots, filterAqi, slug }) {
   //  foot   : OSRM "walking"  → đường bộ hành, mọi khoảng cách
   //  flight : tính tay qua sân bay (đã ổn)
   const MODES = {
-    car:    { label:'Ô tô',   color:'#1565c0', osrmProfile:'driving', useQL1A:false, lineColor:'#1565c0', dash:null,  timeFactor:1.00, note:'Ưu tiên cao tốc' },
-    bike:   { label:'Xe máy', color:'#15803d', osrmProfile:'driving', useQL1A:true,  lineColor:'#15803d', dash:null,  timeFactor:1.30, note:'Tránh cao tốc, đi quốc lộ' },
-    foot:   { label:'Đi bộ',  color:'#b45309', osrmProfile:'walking', useQL1A:false, lineColor:'#b45309', dash:'6 4', timeFactor:1.00, note:'Đường bộ hành' },
-    flight: { label:'Bay',    color:'#6b21a8', osrmProfile:null,       useQL1A:false, lineColor:'#6b21a8', dash:'8 6', timeFactor:1.00, note:'Qua sân bay gần nhất' },
+    car:    { label:'Ô tô',   color:'#1565c0', osrmProfile:'driving', useQL1A:false, lineColor:'#1565c0', dash:null,  useOsrmDuration:true,  durationFactor:1.25, speedKmh:null, note:'Ưu tiên cao tốc' },
+    bike:   { label:'Xe máy', color:'#15803d', osrmProfile:'driving', useQL1A:true,  lineColor:'#15803d', dash:null,  useOsrmDuration:false, durationFactor:null, speedKmh:35,   note:'Tránh cao tốc, đi quốc lộ' },
+    foot:   { label:'Đi bộ',  color:'#b45309', osrmProfile:'walking', useQL1A:false, lineColor:'#b45309', dash:'6 4', useOsrmDuration:false, durationFactor:null, speedKmh:4.5,  note:'Đường bộ hành' },
+    flight: { label:'Bay',    color:'#6b21a8', osrmProfile:null,       useQL1A:false, lineColor:'#6b21a8', dash:'8 6', useOsrmDuration:false, durationFactor:null, speedKmh:null, note:'Qua sân bay gần nhất' },
   };
 
   const TURN_ICON = {
@@ -432,18 +432,27 @@ function TourMap({ spots, filterAqi, slug }) {
           steps.push({icon,text,dist:step.distance>0?fmtDist(step.distance):'',dur:step.duration>10?fmtDur(step.duration):''});
       }));
 
-      // Thời gian: xe máy nhân timeFactor 1.3 (đường chậm hơn ô tô)
-      const adjSec=r.duration*mc.timeFactor;
-      const totalMin=Math.round(adjSec/60);
+      // Tính thời gian thực tế theo phương tiện
+      let totalSec;
+      if (mc.useOsrmDuration) {
+        // Ô tô: dùng OSRM duration × factor (có cao tốc, OSRM tương đối đúng)
+        totalSec = r.duration * mc.durationFactor;
+      } else {
+        // Xe máy / đi bộ: tính từ distance / vận tốc thực tế VN
+        totalSec = (r.distance / 1000 / mc.speedKmh) * 3600;
+      }
+      const totalMin=Math.round(totalSec/60);
       const timeStr=totalMin<60?`${totalMin} phút`:`${Math.floor(totalMin/60)}h${totalMin%60?` ${totalMin%60}p`:''}`;
 
       setRouteInfo({km:(r.distance/1000).toFixed(1),time:timeStr,name:dest.name,mode,steps});
 
-      // Thông báo gợi ý không làm chặn
+      // Thông báo gợi ý theo phương tiện và khoảng cách
       if (mode==='bike'&&distKm>300)
-        setRouteWarn(`ℹ️ Tuyến xe máy ${distKm.toFixed(0)} km (~${timeStr}). Đường quốc lộ, nên nghỉ mỗi 2–3h.`);
-      if (mode==='foot'&&distKm>30)
-        setRouteWarn(`ℹ️ Tuyến đi bộ ${distKm.toFixed(0)} km (~${timeStr}). Rất dài, hãy chuẩn bị kỹ.`);
+        setRouteWarn(`ℹ️ Tuyến xe máy ${(r.distance/1000).toFixed(0)} km (~${timeStr}). Đường quốc lộ, nên nghỉ mỗi 2–3h. Cân nhắc bay nếu đi 1 ngày.`);
+      else if (mode==='foot'&&distKm>50)
+        setRouteWarn(`⚠️ Tuyến đi bộ ${(r.distance/1000).toFixed(0)} km (~${timeStr}). Quá xa để đi bộ - hãy chọn phương tiện khác.`);
+      else if (mode==='foot'&&distKm>10)
+        setRouteWarn(`ℹ️ Đi bộ ${(r.distance/1000).toFixed(0)} km (~${timeStr}). Mang đủ nước và nghỉ chân thường xuyên.`);
     } else {
       // Thất bại → hiện ước tính
       const spd=mode==='foot'?5:mode==='bike'?45:90;
