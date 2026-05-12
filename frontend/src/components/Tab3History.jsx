@@ -15,6 +15,7 @@ function StatCard({ label, value, sub }) {
   );
 }
 
+// ── Lịch sử AQI theo thời gian ────────────────────────────────────────────────
 function HistoryLineChart({ records }) {
   const times   = records.map(r => r.time);
   const aqiVals = records.map(r => r.aqi);
@@ -27,9 +28,18 @@ function HistoryLineChart({ records }) {
     fillcolor: AQI_RGBA[i] || 'rgba(0,0,0,0)', line: { width: 0 }, layer: 'below',
   }));
 
-  const threshAnnotations = [[50,'Tốt','#009a00'],[100,'Trung bình','#b8a000'],[150,'Kém','#c05a00'],[200,'Xấu','#aa0000']].map(
-    ([y, text, color]) => ({ xref:'paper',x:1,yref:'y',y, text:`<b>${text}</b>`, showarrow:false, xanchor:'left', xshift:5, font:{color,size:9}, bgcolor:'rgba(255,255,255,0.85)', borderpad:1 })
-  );
+  const threshAnnotations = [
+    [50,  'Tốt',       '#009a00'],
+    [100, 'Trung bình','#b8a000'],
+    [150, 'Kém',       '#c05a00'],
+    [200, 'Xấu',       '#aa0000'],
+  ].map(([y, text, color]) => ({
+    xref:'paper', x:1, yref:'y', y,
+    text: `<b>${text}</b>`, showarrow: false,
+    xanchor:'left', xshift:5,
+    font: { color, size: 9 },
+    bgcolor:'rgba(255,255,255,0.85)', borderpad: 1,
+  }));
 
   const traces = [
     {
@@ -54,15 +64,16 @@ function HistoryLineChart({ records }) {
         title: { text: 'Lịch sử AQI theo thời gian', font: { size: 14, color: '#333' }, x: 0.02 },
         xaxis: {
           title: 'Thời gian', gridcolor: 'rgba(0,0,0,0.05)',
-          tickformat: '%d/%m\n%H:%M',
-          tickangle: -30,
-          nticks: 12,
-          automargin: true,
+          tickformat: '%d/%m\n%H:%M', tickangle: -30,
+          nticks: 12, automargin: true,
         },
-        yaxis: { title: 'US AQI', gridcolor: 'rgba(0,0,0,0.06)',    
-        range: [0, Math.max(...aqiVals, 50) * 1.3] },
+        yaxis: {
+          title: 'US AQI', gridcolor: 'rgba(0,0,0,0.06)',
+          range: [0, Math.max(...aqiVals, 50) * 1.3],
+        },
         ...(hasPm25 ? { yaxis2: { title: 'PM2.5 (µg/m³)', overlaying: 'y', side: 'right', showgrid: false } } : {}),
         shapes,
+        annotations: threshAnnotations,
         height: 480,
         hovermode: 'x unified',
         legend: { orientation: 'h', x: 0, y: 1.06, font: { size: 11 } },
@@ -74,12 +85,26 @@ function HistoryLineChart({ records }) {
   );
 }
 
+// ── AQI trung bình theo giờ trong ngày ───────────────────────────────────────
+// Công thức:
+//   mean[h] = trung bình cộng tất cả giá trị us_aqi có hour_of_day = h trong kỳ chọn
+//   std[h]  = độ lệch chuẩn của nhóm đó
+//   Dải xanh nhạt = [mean - std, mean + std] → biểu diễn biến động thực tế
 function HourlyPatternChart({ pattern }) {
   const hours = pattern.map(p => p.hour);
   const means = pattern.map(p => p.mean);
   const stds  = pattern.map(p => p.std);
   const upper = means.map((m, i) => m + stds[i]);
   const lower = means.map((m, i) => Math.max(0, m - stds[i]));
+
+  // Annotation giải thích dải ±Std
+  const annotations = [{
+    xref: 'paper', x: 0.98, yref: 'paper', y: 0.96,
+    text: 'Dải màu = ±1 độ lệch chuẩn',
+    showarrow: false, xanchor: 'right',
+    font: { size: 10, color: '#94a3b8' },
+    bgcolor: 'rgba(255,255,255,0.85)', borderpad: 3,
+  }];
 
   return (
     <Plot
@@ -88,13 +113,14 @@ function HourlyPatternChart({ pattern }) {
           x: [...hours, ...hours.slice().reverse()],
           y: [...upper, ...lower.slice().reverse()],
           fill: 'toself', fillcolor: 'rgba(21,101,192,0.12)',
-          line: { color: 'rgba(0,0,0,0)' }, name: '±1 Std', hoverinfo: 'skip',
+          line: { color: 'rgba(0,0,0,0)' }, name: '±1 Std',
+          hoverinfo: 'skip',
         },
         {
           x: hours, y: means, mode: 'lines+markers', name: 'AQI trung bình',
           line: { color: '#1565c0', width: 2.2 },
           marker: { color: means.map(aqiColor), size: 7, line: { color: 'white', width: 1 } },
-          hovertemplate: '<b>%{x:02d}:00</b><br>AQI TB: <b>%{y:.1f}</b><extra></extra>',
+          hovertemplate: '<b>%{x:02d}:00</b><br>AQI TB: <b>%{y:.1f}</b><br><i>±Std: biến động thực tế trong kỳ</i><extra></extra>',
         },
       ]}
       layout={{
@@ -107,6 +133,7 @@ function HourlyPatternChart({ pattern }) {
           ticktext: ['0h','2h','4h','6h','8h','10h','12h','14h','16h','18h','20h','22h'],
         },
         yaxis: { title: 'AQI', gridcolor: 'rgba(0,0,0,0.06)', rangemode: 'tozero' },
+        annotations,
         height: 320,
         legend: { orientation: 'h', x: 0, y: 1.08, font: { size: 11 } },
         margin: { l: 50, r: 20, t: 50, b: 50 },
@@ -117,8 +144,13 @@ function HourlyPatternChart({ pattern }) {
   );
 }
 
+// ── Phân bố mức AQI ───────────────────────────────────────────────────────────
+// FIX: thêm label tên mức trực tiếp trên chart, bỏ h3 bên ngoài
 function PieChart({ distribution }) {
-  const entries = Object.entries(distribution).sort((a, b) => +a[0] - +b[0]);
+  const entries = Object.entries(distribution)
+    .sort((a, b) => +a[0] - +b[0])
+    .filter(([, v]) => v > 0);  // ẩn mức = 0% khỏi chart
+
   return (
     <Plot
       data={[{
@@ -126,15 +158,33 @@ function PieChart({ distribution }) {
         labels: entries.map(([k]) => AQI_LABELS[+k]),
         values: entries.map(([, v]) => v),
         hole: 0.42,
-        marker: { colors: entries.map(([k]) => AQI_COLORS[+k]), line: { color: '#fff', width: 2 } },
-        textinfo: 'percent', hoverinfo: 'label+value+percent',
+        marker: {
+          colors: entries.map(([k]) => AQI_COLORS[+k]),
+          line: { color: '#fff', width: 2 },
+        },
+        // FIX: hiện cả tên mức lẫn phần trăm trên từng slice
+        textinfo: 'label+percent',
+        textposition: 'outside',       // đẩy label ra ngoài tránh chồng lên nhau
         textfont: { size: 11 },
+        hovertemplate: '<b>%{label}</b><br>%{value:.1f}% thời gian<extra></extra>',
+        automargin: true,
       }]}
       layout={{
         ...L,
+        // FIX: title đặt trong Plotly layout thay vì h3 bên ngoài
+        title: {
+          text: 'Phân bố mức AQI trong kỳ',
+          font: { size: 14, color: '#333' },
+          x: 0.5, xanchor: 'center',
+        },
         showlegend: true,
-        legend: { orientation: 'h', yanchor: 'bottom', y: -0.3, xanchor: 'center', x: 0.5, font: { size: 11 } },
-        margin: { l: 10, r: 10, t: 20, b: 20 },
+        legend: {
+          orientation: 'h',
+          yanchor: 'bottom', y: -0.25,
+          xanchor: 'center', x: 0.5,
+          font: { size: 11 },
+        },
+        margin: { l: 20, r: 20, t: 50, b: 10 },
         height: 320,
       }}
       config={{ displayModeBar: false, responsive: true }}
@@ -143,6 +193,7 @@ function PieChart({ distribution }) {
   );
 }
 
+// ── Main Tab ──────────────────────────────────────────────────────────────────
 export default function Tab3History({ slug }) {
   const [days, setDays]       = useState(7);
   const [data, setData]       = useState(null);
@@ -203,8 +254,8 @@ export default function Tab3History({ slug }) {
             <div style={{ background: '#fff', borderRadius: 12, padding: 18, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
               <HourlyPatternChart pattern={data.hourly_pattern} />
             </div>
+            {/* FIX: bỏ h3 bên ngoài, title đã nằm trong Plotly layout */}
             <div style={{ background: '#fff', borderRadius: 12, padding: 18, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-              <h3 style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4, fontSize: '0.92rem' }}>Phân bố mức AQI</h3>
               <PieChart distribution={data.level_distribution} />
             </div>
           </div>
