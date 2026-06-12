@@ -238,14 +238,14 @@ function TourMap({ spots, filterAqi, slug }) {
   };
 
   // ── Cấu hình phương tiện ──────────────────────────────────────────────────────
-  //  car    : OSRM "driving"  → đường cao tốc + QL (nhanh nhất)
-  //  bike   : OSRM "driving"  → nhưng waypoints QL1A buộc đi quốc lộ,
-  //           KHÔNG qua cao tốc (OSRM sẽ tránh motorway khi waypoints nằm trên QL)
-  //           + timeFactor 1.3 (xe máy chậm hơn, dừng đèn đỏ nhiều hơn)
-  //  foot   : OSRM "walking"  → đường bộ hành, mọi khoảng cách
-  //  flight : tính tay qua sân bay (đã ổn)
+  //  car    : OSRM "driving" + waypoints QL1A → tránh đi qua Lào, vẫn dùng cao tốc VN
+  //  bike   : OSRM "driving" + waypoints QL1A → tránh cao tốc, đi QL1A bình thường
+  //           + speedKmh 35 (xe máy chậm hơn ô tô)
+  //  foot   : OSRM "walking" → đường bộ hành
+  //  flight : tính tay qua sân bay gần nhất
   const MODES = {
-    car:    { label:'Ô tô',   color:'#1565c0', osrmProfile:'driving', useQL1A:false, lineColor:'#1565c0', dash:null,  useOsrmDuration:true,  durationFactor:1.25, speedKmh:null, note:'Ưu tiên cao tốc' },
+    // FIX: car dùng useQL1A:true để tránh OSRM route qua Lào khi đi đường dài
+    car:    { label:'Ô tô',   color:'#1565c0', osrmProfile:'driving', useQL1A:true,  lineColor:'#1565c0', dash:null,  useOsrmDuration:true,  durationFactor:1.25, speedKmh:null, note:'Cao tốc + QL ven biển VN' },
     bike:   { label:'Xe máy', color:'#15803d', osrmProfile:'driving', useQL1A:true,  lineColor:'#15803d', dash:null,  useOsrmDuration:false, durationFactor:null, speedKmh:35,   note:'Tránh cao tốc, đi quốc lộ' },
     foot:   { label:'Đi bộ',  color:'#b45309', osrmProfile:'walking', useQL1A:false, lineColor:'#b45309', dash:'6 4', useOsrmDuration:false, durationFactor:null, speedKmh:4.5,  note:'Đường bộ hành' },
     flight: { label:'Bay',    color:'#6b21a8', osrmProfile:null,       useQL1A:false, lineColor:'#6b21a8', dash:'8 6', useOsrmDuration:false, durationFactor:null, speedKmh:null, note:'Qua sân bay gần nhất' },
@@ -398,9 +398,9 @@ function TourMap({ spots, filterAqi, slug }) {
     }
 
     // ── Xây dựng tọa độ route ────────────────────────────────────────────────
-    // Ô tô: không cần waypoint QL1A → OSRM tự chọn đường nhanh nhất (có thể qua cao tốc)
-    // Xe máy: force waypoints QL1A → OSRM route theo quốc lộ, tự nhiên tránh cao tốc
-    // Đi bộ: không waypoint (đi bộ gần, không cần QL1A)
+    // Ô tô + Xe máy: đều dùng waypoints QL1A để OSRM route dọc ven biển VN,
+    // tránh đi qua Lào khi di chuyển Bắc–Nam xuyên Miền Trung.
+    // Đi bộ: không cần waypoint (khoảng cách gần, không xuyên biên giới).
     const waypoints = mc.useQL1A ? buildQL1AWaypoints(from[0],from[1],dest.lat,dest.lon) : [];
 
     const coordStr=[
@@ -448,18 +448,18 @@ function TourMap({ spots, filterAqi, slug }) {
 
       // Thông báo gợi ý theo phương tiện và khoảng cách
       if (mode==='bike'&&distKm>300)
-        setRouteWarn(`ℹ️ Tuyến xe máy ${(r.distance/1000).toFixed(0)} km (~${timeStr}). Đường quốc lộ, nên nghỉ mỗi 2–3h. Cân nhắc bay nếu đi 1 ngày.`);
+        setRouteWarn(` Tuyến xe máy ${(r.distance/1000).toFixed(0)} km (~${timeStr}). Đường quốc lộ, nên nghỉ mỗi 2–3h. Cân nhắc bay nếu đi 1 ngày.`);
       else if (mode==='foot'&&distKm>50)
-        setRouteWarn(`⚠️ Tuyến đi bộ ${(r.distance/1000).toFixed(0)} km (~${timeStr}). Quá xa để đi bộ - hãy chọn phương tiện khác.`);
+        setRouteWarn(` Tuyến đi bộ ${(r.distance/1000).toFixed(0)} km (~${timeStr}). Quá xa để đi bộ - hãy chọn phương tiện khác.`);
       else if (mode==='foot'&&distKm>10)
-        setRouteWarn(`ℹ️ Đi bộ ${(r.distance/1000).toFixed(0)} km (~${timeStr}). Mang đủ nước và nghỉ chân thường xuyên.`);
+        setRouteWarn(` Đi bộ ${(r.distance/1000).toFixed(0)} km (~${timeStr}). Mang đủ nước và nghỉ chân thường xuyên.`);
     } else {
       // Thất bại → hiện ước tính
       const spd=mode==='foot'?5:mode==='bike'?45:90;
       const hrs=(distKm/spd).toFixed(1);
       const unit=mode==='foot'?'đi bộ':mode==='bike'?'xe máy':'ô tô';
       setRouteWarn(
-        `⚠️ Không lấy được tuyến đường từ server (${distKm.toFixed(0)} km).\n` +
+        ` Không lấy được tuyến đường từ server (${distKm.toFixed(0)} km).\n` +
         `Ước tính: ~${hrs} giờ ${unit} theo đường thẳng.\n` +
         `Thử lại sau ít phút hoặc chọn phương tiện "Bay" cho đường rất xa.`
       );
