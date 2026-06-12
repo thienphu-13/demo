@@ -1,13 +1,16 @@
 """
 main.py - FastAPI backend cho AQI Forecast App.
 - Cache RAM 2h + stale fallback 24h khi bị 429
-- Pre-warm cache 4 tỉnh lúc startup (tuần tự, cách 5s)
+- Persistent disk cache → sống qua restart/cold-start
+- Pre-warm cache 4 tỉnh lúc startup (tuần tự, cách 3s)
 """
 from __future__ import annotations
 import os
+import json
 import time
 from contextlib import asynccontextmanager
 from datetime import timedelta
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -24,10 +27,39 @@ from model_inference import load_artifacts, predict_aqi, clear_artifact_cache
 from drive_sync import sync_from_drive
 
 
-# ── Cache RAM ─────────────────────────────────────────────────────────────────
+# ── Persistent disk cache ─────────────────────────────────────────────────────
+# Lưu cache xuống /tmp để sống qua restart cold-start của Render free tier.
+# /tmp không bị xóa khi restart process (chỉ bị xóa khi Render xóa container),
+# nên stale fallback 24h có dữ liệu ngay cả khi RAM vừa trống sau cold-start.
+
+_CACHE_FILE = Path("/tmp/aqi_cache.json")
 _cache: dict = {}
-_CACHE_TTL   = 7200   # 2 giờ fresh
-_STALE_TTL   = 86400  # 24 giờ stale fallback
+_CACHE_TTL  = 7200   # 2 giờ fresh
+_STALE_TTL  = 86400  # 24 giờ stale fallback
+
+
+def _disk_load() -> dict:
+    """Load cache từ disk vào RAM khi startup."""
+    try:
+        if _CACHE_FILE.exists():
+            data = json.loads(_CACHE_FILE.read_text(encoding="utf-8"))
+            print(f"[cache] Loaded {len(data)} entries từ disk")
+            return data
+    except Exception as e:
+        print(f"[cache] Không load được disk cache: {e}")
+    return {}
+
+
+def _disk_save() -> None:
+    """Lưu toàn bộ RAM cache xuống disk (gọi sau mỗi cache_set)."""
+    try:
+        _CACHE_FILE.write_text(
+            json.dumps(_cache, ensure_ascii=False, default=str),
+            encoding="utf-8",
+        )
+    except Exception as e:
+        print(f"[cache] Không lưu được disk cache: {e}")
+
 
 def _cache_get(key: str, allow_stale: bool = False):
     entry = _cache.get(key)
@@ -40,8 +72,10 @@ def _cache_get(key: str, allow_stale: bool = False):
         return entry["data"]
     return None
 
-def _cache_set(key: str, data):
+
+def _cache_set(key: str, data) -> None:
     _cache[key] = {"data": data, "ts": time.time()}
+    _disk_save()  # ← persist ngay sau mỗi lần set
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -52,11 +86,13 @@ def _aqi_level(val: float) -> int:
             return i
     return len(AQI_LABELS) - 1
 
+
 def _slug_to_prov(slug: str) -> dict:
     prov = next((v for k, v in PROVINCES.items() if v["slug"] == slug), None)
     if not prov:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy tỉnh: {slug}")
     return prov
+
 
 def _safe_float(v) -> float | None:
     try:
@@ -64,6 +100,7 @@ def _safe_float(v) -> float | None:
         return None if np.isnan(f) else round(f, 2)
     except Exception:
         return None
+
 
 def _build_forecast_result(slug: str) -> dict:
     """Core logic dùng chung cho endpoint và pre-warm."""
@@ -139,42 +176,49 @@ def _build_forecast_result(slug: str) -> dict:
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 async def _background_prewarm():
-    """Pre-warm cache sau khi server đã sẵn sàng - không block startup."""
+    """Pre-warm cache sau khi server đã sẵn sàng."""
     import asyncio
-    await asyncio.sleep(5)  # Chờ server up hoàn toàn
+    await asyncio.sleep(5)
     print("⏳ Pre-warming cache cho 4 tỉnh (background)...")
     for name, prov in PROVINCES.items():
         slug      = prov["slug"]
         cache_key = f"forecast:{slug}"
         if _cache_get(cache_key):
-            print(f"  ✓ {name} (đã có cache)")
+            print(f"  ✓ {name} (đã có cache - RAM hoặc disk)")
             continue
         try:
             result = _build_forecast_result(slug)
             _cache_set(cache_key, result)
             print(f"  ✓ {name} - AQI {result['current']['aqi']}")
-            await asyncio.sleep(8)  # Chờ 8s giữa các tỉnh
+            await asyncio.sleep(3)  # giảm từ 8s → 3s để warm nhanh hơn
         except Exception as e:
             print(f"  ✗ {name}: {e}")
-            await asyncio.sleep(3)
+            # Nếu lỗi Open-Meteo, stale cache từ disk đã được load sẵn rồi
+            await asyncio.sleep(2)
     print("✅ Pre-warm xong!")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import asyncio
-    # Sync Drive trước
+
+    # 1. Load disk cache vào RAM ngay khi startup
+    #    → stale fallback có dữ liệu ngay cả khi cold-start
+    _cache.update(_disk_load())
+
+    # 2. Sync Drive
     if os.environ.get("GCP_SA_JSON") and os.environ.get("DRIVE_FOLDER_ID"):
         print("⏳ Auto-syncing model artifacts from Drive...")
         ok, msg, n = sync_from_drive(force=False)
         print(f"  → {msg} ({n} files)")
 
-    # Pre-warm chạy nền, không block
+    # 3. Pre-warm chạy nền
     asyncio.create_task(_background_prewarm())
     yield
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI(title="AQI Forecast API - Miền Trung VN", version="2.1.0", lifespan=lifespan)
+app = FastAPI(title="AQI Forecast API - Miền Trung VN", version="2.2.0", lifespan=lifespan)
 
 ALLOWED_ORIGINS = os.environ.get(
     "ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000"
@@ -189,15 +233,25 @@ app.add_middleware(
 # ── Routes ────────────────────────────────────────────────────────────────────
 @app.get("/api/health")
 def health():
+    stale_keys = [
+        k for k, v in _cache.items()
+        if time.time() - v["ts"] >= _CACHE_TTL
+    ]
     return {
-        "status": "ok", "time_vn": vn_now().isoformat(),
-        "cache_entries": len(_cache), "cached_keys": list(_cache.keys()),
+        "status": "ok",
+        "time_vn": vn_now().isoformat(),
+        "cache_entries": len(_cache),
+        "cached_keys": list(_cache.keys()),
+        "stale_keys": stale_keys,
+        "disk_cache_exists": _CACHE_FILE.exists(),
     }
+
 
 @app.get("/api/provinces")
 def get_provinces():
     return [{"name": name, "slug": v["slug"], "lat": v["lat"], "lon": v["lon"]}
             for name, v in PROVINCES.items()]
+
 
 @app.get("/api/forecast/{slug}")
 def get_forecast(slug: str):
@@ -210,6 +264,7 @@ def get_forecast(slug: str):
         _cache_set(cache_key, result)
         return result
     except Exception as e:
+        # Thử stale fallback (RAM hoặc disk đã load vào RAM lúc startup)
         stale = _cache_get(cache_key, allow_stale=True)
         if stale:
             print(f"[fallback] stale cache cho {slug}")
@@ -217,6 +272,7 @@ def get_forecast(slug: str):
         if "429" in str(e) or "Too Many Requests" in str(e):
             raise HTTPException(status_code=429, detail="Open-Meteo rate limit. Thử lại sau vài phút.")
         raise HTTPException(status_code=502, detail=str(e))
+
 
 @app.get("/api/history/{slug}")
 def get_history(slug: str, days: int = Query(default=7, ge=1, le=30)):
@@ -271,6 +327,7 @@ def get_history(slug: str, days: int = Query(default=7, ge=1, le=30)):
     _cache_set(cache_key, result)
     return result
 
+
 @app.get("/api/model-summary/{slug}")
 def get_model_summary(slug: str):
     if slug not in MODEL_SUMMARY:
@@ -293,6 +350,7 @@ def get_model_summary(slug: str):
     return {"slug": slug, "name": data["name"], "best": data["best"],
             "n_pc": data["n_pc"], "models": models, "all_best": all_best}
 
+
 @app.post("/api/sync")
 def trigger_sync(force: bool = Query(default=False), x_admin_token: str | None = Header(default=None)):
     admin_token = os.environ.get("ADMIN_TOKEN")
@@ -303,12 +361,17 @@ def trigger_sync(force: bool = Query(default=False), x_admin_token: str | None =
         clear_artifact_cache()
     return {"success": ok, "message": msg, "downloaded": n}
 
+
 @app.delete("/api/cache")
 def clear_api_cache(x_admin_token: str | None = Header(default=None)):
-    """Xóa cache thủ công để force refresh."""
+    """Xóa cache RAM + disk thủ công để force refresh."""
     admin_token = os.environ.get("ADMIN_TOKEN")
     if admin_token and x_admin_token != admin_token:
         raise HTTPException(status_code=403, detail="Unauthorized.")
     n = len(_cache)
     _cache.clear()
+    try:
+        _CACHE_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
     return {"cleared": n}
